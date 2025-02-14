@@ -1,27 +1,4 @@
 const std = @import("std");
-const Token = struct {
-    token_type: TokenType,
-    lexeme: []const u8,
-    literal: ?Literal,
-};
-
-pub const Literal = union(enum) {
-    number: f64,
-    string: []const u8,
-};
-
-pub const TokenType = enum {
-    EOF,
-    IDENTIFIER,
-    NUMBER,
-    STRING,
-    PLUS,
-    MINUS,
-    TIMES,
-    DIVIDE,
-    LPAREN,
-    RPAREN,
-};
 pub const Input = struct {
     source: []const u8,
     index: usize,
@@ -45,6 +22,33 @@ pub fn makeInput(source: []const u8) Input {
         .index = 0,
     };
 }
+const Token = struct {
+    token_type: TokenType,
+    lexeme: []const u8,
+    literal: ?Literal,
+};
+
+pub const Literal = union(enum) {
+    number: f64,
+    string: []const u8,
+};
+
+pub const TokenType = enum {
+    EOF,
+    IDENTIFIER,
+    NUMBER,
+    STRING,
+    PLUS,
+    MINUS,
+    TIMES,
+    DIVIDE,
+    LPAREN,
+    RPAREN,
+    LBRACE,
+    RBRACE,
+    LBRACKET,
+    RBRACKET,
+};
 pub fn printToken(token: Token) !void {
     const token_type = switch (token.token_type) {
         TokenType.EOF => "EOF",
@@ -57,6 +61,10 @@ pub fn printToken(token: Token) !void {
         TokenType.DIVIDE => "DIVIDE",
         TokenType.LPAREN => "LEFT_PAREN",
         TokenType.RPAREN => "RIGHT_PAREN",
+        TokenType.LBRACE => "LEFT_BRACE",
+        TokenType.RBRACE => "RIGHT_BRACE",
+        TokenType.LBRACKET => "LEFT_BRACKET",
+        TokenType.RBRACKET => "RIGHT_BRACKET",
     };
     if (token.literal) |literal| {
         switch (literal) {
@@ -72,6 +80,10 @@ pub fn Tokenizer(source: *Input) ![]Token {
     while (source.next()) |c| {
         const token = switch (c) {
             ' ', '\t', '\n' => continue,
+            '{' => Token{ .token_type = TokenType.LBRACE, .lexeme = "{", .literal = null },
+            '}' => Token{ .token_type = TokenType.RBRACE, .lexeme = "}", .literal = null },
+            '[' => Token{ .token_type = TokenType.LBRACKET, .lexeme = "[", .literal = null },
+            ']' => Token{ .token_type = TokenType.RBRACKET, .lexeme = "]", .literal = null },
             '(' => Token{ .token_type = TokenType.LPAREN, .lexeme = "(", .literal = null },
             ')' => Token{ .token_type = TokenType.RPAREN, .lexeme = ")", .literal = null },
             '+' => Token{ .token_type = TokenType.PLUS, .lexeme = "+", .literal = null },

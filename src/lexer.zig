@@ -22,6 +22,7 @@ pub fn makeInput(source: []const u8) Input {
         .index = 0,
     };
 }
+
 const Token = struct {
     token_type: TokenType,
     lexeme: []const u8,
@@ -29,7 +30,7 @@ const Token = struct {
 };
 
 pub const Literal = union(enum) {
-    number: f64,
+    number: usize,
     string: []const u8,
 };
 pub const TokenType = enum {
@@ -50,6 +51,7 @@ pub const TokenType = enum {
     GREATER,
     SLASH,
     DOT,
+    INVALID_TOKEN,
     EOF,
 };
 pub fn printToken(token: Token) !void {
@@ -72,11 +74,16 @@ pub fn printToken(token: Token) !void {
         TokenType.GREATER => "GREATER",
         TokenType.SLASH => "SLASH",
         TokenType.DOT => "DOT",
+        TokenType.INVALID_TOKEN => "INVALID_TOKEN",
     };
     if (token.literal) |literal| {
-        switch (literal) {
-            .number => |number| try std.io.getStdOut().writer().print("{s} {s} {d}\n", .{ token_type, token.lexeme, number }),
-            .string => |string| try std.io.getStdOut().writer().print("{s} {s} {s}\n", .{ token_type, token.lexeme, string }),
+        if (token.token_type == TokenType.INVALID_TOKEN) {
+            try std.io.getStdOut().writer().print("[line {d}] Error: Unexpected character: {s}\n", .{ literal.number, token.lexeme });
+        } else {
+            switch (literal) {
+                .number => |number| try std.io.getStdOut().writer().print("{s} {s} {d}\n", .{ token_type, token.lexeme, number }),
+                .string => |string| try std.io.getStdOut().writer().print("{s} {s} {s}\n", .{ token_type, token.lexeme, string }),
+            }
         }
     } else {
         try std.io.getStdOut().writer().print("{s} {s} null\n", .{ token_type, token.lexeme });
@@ -102,10 +109,7 @@ pub fn Tokenizer(source: *Input) ![]Token {
             '-' => Token{ .token_type = TokenType.MINUS, .lexeme = "-", .literal = null },
             '*' => Token{ .token_type = TokenType.STAR, .lexeme = "*", .literal = null },
             '.' => Token{ .token_type = TokenType.DOT, .lexeme = ".", .literal = null },
-            else => {
-                std.debug.print("[line {d}] Error: Unexpected character: {c}\n", .{ line_number, c });
-                continue;
-            },
+            else => Token{ .token_type = TokenType.INVALID_TOKEN, .lexeme = try std.fmt.allocPrint(std.heap.page_allocator, "{c}", .{c}), .literal = Literal{ .number = line_number } },
         };
         try tokens.append(token);
     }

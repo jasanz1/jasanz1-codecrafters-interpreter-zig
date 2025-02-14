@@ -64,11 +64,7 @@ pub fn printToken(token: Token) !void {
             .string => |string| try std.io.getStdOut().writer().print("{s} {s} {s}\n", .{ token_type, token.lexeme, string }),
         }
     } else {
-        if (token.token_type == TokenType.EOF) {
-            try std.io.getStdOut().writer().print("{s} null\n", .{token_type});
-        } else {
-            try std.io.getStdOut().writer().print("{s} {s} null\n", .{ token_type, token.lexeme });
-        }
+        try std.io.getStdOut().writer().print("{s} {s} null\n", .{ token_type, token.lexeme });
     }
 }
 pub fn Tokenizer(source: *Input) ![]Token {
@@ -89,7 +85,7 @@ pub fn Tokenizer(source: *Input) ![]Token {
         };
         try tokens.append(token);
     }
-    const token = Token{ .token_type = TokenType.EOF, .lexeme = "EOF", .literal = null };
+    const token = Token{ .token_type = TokenType.EOF, .lexeme = "", .literal = null };
     try tokens.append(token);
 
     return tokens.toOwnedSlice();

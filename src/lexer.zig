@@ -45,7 +45,25 @@ pub fn makeInput(source: []const u8) Input {
         .index = 0,
     };
 }
-
+pub fn printToken(token: Token) void {
+    const token_type = switch (token.token_type) {
+        TokenType.EOF => "EOF",
+        TokenType.IDENTIFIER => "IDENTIFIER",
+        TokenType.NUMBER => "NUMBER",
+        TokenType.STRING => "STRING",
+        TokenType.PLUS => "PLUS",
+        TokenType.MINUS => "MINUS",
+        TokenType.TIMES => "TIMES",
+        TokenType.DIVIDE => "DIVIDE",
+        TokenType.LPAREN => "LEFT_PAREN",
+        TokenType.RPAREN => "RIGHT_PAREN",
+    };
+    switch (token.literal) {
+        .number => |number| std.io.getStdOut().writer().print("{s} {d}\n", .{ token_type, token.lexeme, number }),
+        .string => |string| std.io.getStdOut().writer().print("{s} {s}\n", .{ token_type, token.lexeme, string }),
+        else => std.io.getStdOut().writer().print("{s} {s} NULL\n", .{ token_type, token.lexeme }),
+    }
+}
 pub fn Tokenizer(source: *Input) ![]Token {
     var tokens = std.ArrayList(Token).init(std.heap.page_allocator);
     while (source.next()) |c| {

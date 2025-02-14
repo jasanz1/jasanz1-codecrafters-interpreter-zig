@@ -30,7 +30,7 @@ pub fn main() !void {
         defer std.heap.page_allocator.free(tokens);
         std.debug.print("Tokens:{any}\n", .{tokens});
         for (tokens) |token| {
-            lexer.printToken(token);
+            try lexer.printToken(token);
         }
     } else {
         try std.io.getStdOut().writer().print("EOF  null\n", .{}); // Placeholder, remove this line when implementing the scanner

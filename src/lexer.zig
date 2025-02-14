@@ -45,7 +45,7 @@ pub fn makeInput(source: []const u8) Input {
         .index = 0,
     };
 }
-pub fn printToken(token: Token) void {
+pub fn printToken(token: Token) !void {
     const token_type = switch (token.token_type) {
         TokenType.EOF => "EOF",
         TokenType.IDENTIFIER => "IDENTIFIER",
@@ -58,10 +58,13 @@ pub fn printToken(token: Token) void {
         TokenType.LPAREN => "LEFT_PAREN",
         TokenType.RPAREN => "RIGHT_PAREN",
     };
-    switch (token.literal) {
-        .number => |number| std.io.getStdOut().writer().print("{s} {d}\n", .{ token_type, token.lexeme, number }),
-        .string => |string| std.io.getStdOut().writer().print("{s} {s}\n", .{ token_type, token.lexeme, string }),
-        else => std.io.getStdOut().writer().print("{s} {s} NULL\n", .{ token_type, token.lexeme }),
+    if (token.literal) |literal| {
+        switch (literal) {
+            .number => |number| try std.io.getStdOut().writer().print("{s} {s} {d}\n", .{ token_type, token.lexeme, number }),
+            .string => |string| try std.io.getStdOut().writer().print("{s} {s} {s}\n", .{ token_type, token.lexeme, string }),
+        }
+    } else {
+        try std.io.getStdOut().writer().print("{s} {s} null\n", .{ token_type, token.lexeme });
     }
 }
 pub fn Tokenizer(source: *Input) ![]Token {

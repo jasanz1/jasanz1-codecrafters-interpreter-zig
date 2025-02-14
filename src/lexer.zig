@@ -103,7 +103,7 @@ pub fn Tokenizer(source: *Input) ![]Token {
             '*' => Token{ .token_type = TokenType.STAR, .lexeme = "*", .literal = null },
             '.' => Token{ .token_type = TokenType.DOT, .lexeme = ".", .literal = null },
             else => {
-                std.debug.print("[line {d}] Error: Unexpected character: {c}", .{ line_number, c });
+                std.debug.print("[line {d}] Error: Unexpected character: {c}\n", .{ line_number, c });
                 continue;
             },
         };

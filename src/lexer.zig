@@ -84,9 +84,14 @@ pub fn printToken(token: Token) !void {
 }
 pub fn Tokenizer(source: *Input) ![]Token {
     var tokens = std.ArrayList(Token).init(std.heap.page_allocator);
+    var line_number: usize = 1;
     while (source.next()) |c| {
         const token = switch (c) {
-            ' ', '\t', '\n' => continue,
+            ' ', '\t' => continue,
+            '\n' => {
+                line_number += 1;
+                continue;
+            },
             '(' => Token{ .token_type = TokenType.LEFT_PAREN, .lexeme = "(", .literal = null },
             ')' => Token{ .token_type = TokenType.RIGHT_PAREN, .lexeme = ")", .literal = null },
             '{' => Token{ .token_type = TokenType.LEFT_BRACE, .lexeme = "{", .literal = null },
@@ -98,8 +103,8 @@ pub fn Tokenizer(source: *Input) ![]Token {
             '*' => Token{ .token_type = TokenType.STAR, .lexeme = "*", .literal = null },
             '.' => Token{ .token_type = TokenType.DOT, .lexeme = ".", .literal = null },
             else => {
-                std.debug.print("Unknown character: {c}\n", .{c});
-                return error.UnknownCharacter;
+                std.debug.print("[line {d}] Error: Unexpected character: {c}", .{ line_number, c });
+                continue;
             },
         };
         try tokens.append(token);

@@ -28,7 +28,6 @@ pub fn main() !void {
         var input = lexer.makeInput(file_contents);
         const tokens = try lexer.Tokenizer(&input);
         defer std.heap.page_allocator.free(tokens);
-        std.debug.print("Tokens:{any}\n", .{tokens});
         for (tokens) |token| {
             try lexer.printToken(token);
         }

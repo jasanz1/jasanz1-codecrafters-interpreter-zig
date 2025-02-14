@@ -78,7 +78,8 @@ pub fn printToken(token: Token) !void {
     };
     if (token.literal) |literal| {
         if (token.token_type == TokenType.INVALID_TOKEN) {
-            try std.io.getStdOut().writer().print("[line {d}] Error: Unexpected character: {s}\n", .{ literal.number, token.lexeme });
+            try std.io.getStdErr().writer().print("[line {d}] Error: Unexpected character: {s}\n", .{ literal.number, token.lexeme });
+            return error.UnexpectedCharacter;
         } else {
             switch (literal) {
                 .number => |number| try std.io.getStdOut().writer().print("{s} {s} {d}\n", .{ token_type, token.lexeme, number }),

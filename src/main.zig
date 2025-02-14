@@ -1,6 +1,6 @@
 const std = @import("std");
 const lexer = @import("lexer.zig");
-pub fn main() !void {
+pub fn main() !u8 {
     // You can use print statements as follows for debugging, they'll be visible when running tests.
     std.debug.print("Logs from your program will appear here!\n", .{});
 
@@ -22,6 +22,7 @@ pub fn main() !void {
 
     const file_contents = try std.fs.cwd().readFileAlloc(std.heap.page_allocator, filename, std.math.maxInt(usize));
     defer std.heap.page_allocator.free(file_contents);
+    var errored: ?anyerror = null;
 
     // Uncomment this block to pass the first stage
     if (file_contents.len > 0) {
@@ -29,9 +30,17 @@ pub fn main() !void {
         const tokens = try lexer.Tokenizer(&input);
         defer std.heap.page_allocator.free(tokens);
         for (tokens) |token| {
-            try lexer.printToken(token);
+            if (lexer.printToken(token)) |_| {} else |err| {
+                errored = err;
+            }
         }
     } else {
         try std.io.getStdOut().writer().print("EOF  null\n", .{}); // Placeholder, remove this line when implementing the scanner
     }
+    if (errored) |err| {
+        if (err == error.UnexpectedCharacter) {
+            return 65;
+        }
+    }
+    return 0;
 }

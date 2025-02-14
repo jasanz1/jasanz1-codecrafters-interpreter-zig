@@ -64,7 +64,11 @@ pub fn printToken(token: Token) !void {
             .string => |string| try std.io.getStdOut().writer().print("{s} {s} {s}\n", .{ token_type, token.lexeme, string }),
         }
     } else {
-        try std.io.getStdOut().writer().print("{s} {s} null\n", .{ token_type, token.lexeme });
+        if (token.token_type == TokenType.EOF) {
+            try std.io.getStdOut().writer().print("{s} null\n", .{token_type});
+        } else {
+            try std.io.getStdOut().writer().print("{s} {s} null\n", .{ token_type, token.lexeme });
+        }
     }
 }
 pub fn Tokenizer(source: *Input) ![]Token {

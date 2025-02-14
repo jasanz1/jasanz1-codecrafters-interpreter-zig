@@ -48,6 +48,7 @@ pub const TokenType = enum {
     RBRACE,
     LBRACKET,
     RBRACKET,
+    COMMA,
 };
 pub fn printToken(token: Token) !void {
     const token_type = switch (token.token_type) {
@@ -65,6 +66,7 @@ pub fn printToken(token: Token) !void {
         TokenType.RBRACE => "RIGHT_BRACE",
         TokenType.LBRACKET => "LEFT_BRACKET",
         TokenType.RBRACKET => "RIGHT_BRACKET",
+        TokenType.COMMA => "COMMA",
     };
     if (token.literal) |literal| {
         switch (literal) {
@@ -90,6 +92,7 @@ pub fn Tokenizer(source: *Input) ![]Token {
             '-' => Token{ .token_type = TokenType.MINUS, .lexeme = "-", .literal = null },
             '*' => Token{ .token_type = TokenType.TIMES, .lexeme = "*", .literal = null },
             '/' => Token{ .token_type = TokenType.DIVIDE, .lexeme = "/", .literal = null },
+            ',' => Token{ .token_type = TokenType.COMMA, .lexeme = ",", .literal = null },
             else => {
                 std.debug.print("Unknown character: {any}\n", .{c});
                 return error.UnknownCharacter;

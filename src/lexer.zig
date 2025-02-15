@@ -222,7 +222,7 @@ fn readString(source: *Input) !Token {
             try string.append(c);
         }
     } else {
-        return error.StringExpected;
+        return Token{ .line_number = source.line_number, .token_type = TokenType.UNTERMINATED_STRING, .lexeme = try std.fmt.allocPrint(std.heap.page_allocator, "\"{s}\"", .{string.items}), .literal = Literal{ .string = string.items } };
     }
     const literal = try string.toOwnedSlice();
     const lexeme = try std.fmt.allocPrint(std.heap.page_allocator, "\"{s}\"", .{literal});

@@ -91,7 +91,14 @@ pub fn printToken(token: Token) !void {
     };
     if (token.literal) |literal| {
         switch (literal) {
-            .number => |number| try std.io.getStdOut().writer().print("{s} {s} {d:.1}\n", .{ token_type, token.lexeme, number }),
+            .number => |number| {
+                if (@ceil(number) == number) {
+                    try std.io.getStdOut().writer().print("{s} {s} {d}.0\n", .{ token_type, token.lexeme, number });
+                    return;
+                } else {
+                    try std.io.getStdOut().writer().print("{s} {s} {d}\n", .{ token_type, token.lexeme, number });
+                }
+            },
             .string => |string| try std.io.getStdOut().writer().print("{s} {s} {s}\n", .{ token_type, token.lexeme, string }),
         }
     } else {

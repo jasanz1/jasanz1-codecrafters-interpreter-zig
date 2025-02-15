@@ -97,7 +97,7 @@ pub fn printToken(token: Token) !void {
 pub fn Tokenizer(source: *Input) ![]Token {
     var tokens = std.ArrayList(Token).init(std.heap.page_allocator);
     var line_number: usize = 1;
-    while (source.next()) |c| {
+    mainLoop: while (source.next()) |c| {
         const token = switch (c) {
             ' ', '\t' => continue,
             '\n' => {
@@ -169,7 +169,7 @@ pub fn Tokenizer(source: *Input) ![]Token {
                         while (source.next()) |cSkip| {
                             if (cSkip == '\n') {
                                 line_number += 1;
-                                break :switchReturn;
+                                continue :mainLoop;
                             }
                         }
                     } else {

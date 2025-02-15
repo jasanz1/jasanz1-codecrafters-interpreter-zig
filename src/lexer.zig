@@ -219,13 +219,14 @@ pub fn Tokenizer(source: *Input) ![]Token {
 
 fn readString(source: *Input) !Token {
     var string = std.ArrayList(u8).init(std.heap.page_allocator);
-    while (source.next()) |c| {
+    while (source.peek()) |c| {
         if (c == '"') {
             break;
         } else if (c == '\n' or c == '\r') {
             source.line_number += 1;
             return Token{ .line_number = source.line_number, .token_type = TokenType.UNTERMINATED_STRING, .lexeme = try std.fmt.allocPrint(std.heap.page_allocator, "\"{s}\"", .{string.items}), .literal = null };
         } else {
+            _ = source.next();
             try string.append(c);
         }
     } else {
@@ -241,15 +242,17 @@ fn readString(source: *Input) !Token {
 fn readNumber(source: *Input, current: u8) !Token {
     var number = std.ArrayList(u8).init(std.heap.page_allocator);
     try number.append(current);
-    while (source.next()) |c| {
+    while (source.peek()) |c| {
         if (c == '\n' or c == '\r') {
             source.line_number += 1;
             break;
         } else if (c == ' ' or c == '\t') {
             break;
         } else if (c == '.') {
+            _ = source.next();
             try number.append(c);
         } else if (c >= '0' and c <= '9') {
+            _ = source.next();
             try number.append(c);
         } else {
             break;

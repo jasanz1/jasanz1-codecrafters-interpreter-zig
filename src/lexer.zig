@@ -33,7 +33,7 @@ const Token = struct {
 };
 
 pub const Literal = union(enum) {
-    number: usize,
+    number: f64,
     string: []const u8,
 };
 pub const TokenType = enum {
@@ -91,7 +91,7 @@ pub fn printToken(token: Token) !void {
     };
     if (token.literal) |literal| {
         switch (literal) {
-            .number => |number| try std.io.getStdOut().writer().print("{s} {s} {d}\n", .{ token_type, token.lexeme, number }),
+            .number => |number| try std.io.getStdOut().writer().print("{s} {s} {d:.1}\n", .{ token_type, token.lexeme, number }),
             .string => |string| try std.io.getStdOut().writer().print("{s} {s} {s}\n", .{ token_type, token.lexeme, string }),
         }
     } else {
@@ -254,6 +254,6 @@ fn readNumber(source: *Input, current: u8) !Token {
     }
     const literal = try number.toOwnedSlice();
     const lexeme = try std.fmt.allocPrint(std.heap.page_allocator, "{s}", .{literal});
-    const token = Token{ .line_number = source.line_number, .token_type = TokenType.NUMBER, .lexeme = lexeme, .literal = Literal{ .number = std.fmt.parseInt(usize, literal, 10) catch unreachable } };
+    const token = Token{ .line_number = source.line_number, .token_type = TokenType.NUMBER, .lexeme = lexeme, .literal = Literal{ .number = std.fmt.parseFloat(f64, literal) catch unreachable } };
     return token;
 }

@@ -38,7 +38,7 @@ pub fn main() !u8 {
         try std.io.getStdOut().writer().print("EOF  null\n", .{}); // Placeholder, remove this line when implementing the scanner
     }
     if (errored) |err| {
-        if (err == error.UnexpectedCharacter or err == error.StringExpected or err == error.NumberExpected) {
+        if (err == error.UnexpectedCharacter or err == error.UnterminatedString or err == error.NumberExpected) {
             return 65;
         }
     }

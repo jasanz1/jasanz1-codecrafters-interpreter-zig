@@ -231,7 +231,6 @@ fn readIdentifer(source: *Input, current: u8) !Token {
     try identifier.append(current);
     while (source.peek()) |c| {
         switch (c) {
-            ' ', '\t' => break,
             '\n', '\r' => {
                 source.line_number += 1;
                 break;
@@ -241,8 +240,7 @@ fn readIdentifer(source: *Input, current: u8) !Token {
                 try identifier.append(c);
             },
             else => {
-                _ = source.next();
-                return Token{ .line_number = source.line_number, .token_type = TokenType.INVALID_TOKEN, .lexeme = try std.fmt.allocPrint(std.heap.page_allocator, "{c}", .{identifier.items}), .literal = null };
+                break;
             },
         }
     }

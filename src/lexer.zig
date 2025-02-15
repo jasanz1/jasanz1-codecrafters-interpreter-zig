@@ -90,6 +90,11 @@ pub fn printToken(token: Token) !void {
         TokenType.INVALID_TOKEN => "INVALID_TOKEN",
     };
     if (token.literal) |literal| {
+        switch (literal) {
+            .number => |number| try std.io.getStdOut().writer().print("{s} {s} {d}\n", .{ token_type, token.lexeme, number }),
+            .string => |string| try std.io.getStdOut().writer().print("{s} {s} {s}\n", .{ token_type, token.lexeme, string }),
+        }
+    } else {
         switch (token.token_type) {
             TokenType.INVALID_TOKEN => {
                 try std.io.getStdErr().writer().print("[line {d}] Error: Unexpected character: {s}\n", .{ token.line_number, token.lexeme });
@@ -100,14 +105,9 @@ pub fn printToken(token: Token) !void {
                 return error.UnterminatedString;
             },
             else => {
-                switch (literal) {
-                    .number => |number| try std.io.getStdOut().writer().print("{s} {s} {d}\n", .{ token_type, token.lexeme, number }),
-                    .string => |string| try std.io.getStdOut().writer().print("{s} {s} {s}\n", .{ token_type, token.lexeme, string }),
-                }
+                try std.io.getStdOut().writer().print("{s} {s} null\n", .{ token_type, token.lexeme });
             },
         }
-    } else {
-        try std.io.getStdOut().writer().print("{s} {s} null\n", .{ token_type, token.lexeme });
     }
 }
 pub fn Tokenizer(source: *Input) ![]Token {
@@ -217,12 +217,12 @@ fn readString(source: *Input) !Token {
             break;
         } else if (c == '\n' or c == '\r') {
             source.line_number += 1;
-            return Token{ .line_number = source.line_number, .token_type = TokenType.UNTERMINATED_STRING, .lexeme = try std.fmt.allocPrint(std.heap.page_allocator, "\"{s}\"", .{string.items}), .literal = Literal{ .string = string.items } };
+            return Token{ .line_number = source.line_number, .token_type = TokenType.UNTERMINATED_STRING, .lexeme = try std.fmt.allocPrint(std.heap.page_allocator, "\"{s}\"", .{string.items}), .literal = null };
         } else {
             try string.append(c);
         }
     } else {
-        return Token{ .line_number = source.line_number, .token_type = TokenType.UNTERMINATED_STRING, .lexeme = try std.fmt.allocPrint(std.heap.page_allocator, "\"{s}\"", .{string.items}), .literal = Literal{ .string = string.items } };
+        return Token{ .line_number = source.line_number, .token_type = TokenType.UNTERMINATED_STRING, .lexeme = try std.fmt.allocPrint(std.heap.page_allocator, "\"{s}\"", .{string.items}), .literal = null };
     }
     const literal = try string.toOwnedSlice();
     const lexeme = try std.fmt.allocPrint(std.heap.page_allocator, "\"{s}\"", .{literal});

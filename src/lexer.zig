@@ -97,8 +97,8 @@ pub fn printToken(token: Token) !void {
 pub fn Tokenizer(source: *Input) ![]Token {
     var tokens = std.ArrayList(Token).init(std.heap.page_allocator);
     var line_number: usize = 1;
-    mainLoop: while (source.next()) |c| {
-        const token = switch (c) {
+    while (source.next()) |c| {
+        const token: ?Token = switch (c) {
             ' ', '\t' => continue,
             '\n' => {
                 line_number += 1;
@@ -114,16 +114,16 @@ pub fn Tokenizer(source: *Input) ![]Token {
             '-' => Token{ .token_type = TokenType.MINUS, .lexeme = "-", .literal = null },
             '*' => Token{ .token_type = TokenType.STAR, .lexeme = "*", .literal = null },
             '.' => Token{ .token_type = TokenType.DOT, .lexeme = ".", .literal = null },
-            '=' => equals: {
+            '=' => switchReturn: {
                 if (source.peek()) |cPeek| {
                     if (cPeek == '=') {
                         _ = source.next() orelse return error.uhoh;
-                        break :equals Token{ .token_type = TokenType.EQUAL_EQUAL, .lexeme = "==", .literal = null };
+                        break :switchReturn Token{ .token_type = TokenType.EQUAL_EQUAL, .lexeme = "==", .literal = null };
                     } else {
-                        break :equals Token{ .token_type = TokenType.EQUAL, .lexeme = "=", .literal = null };
+                        break :switchReturn Token{ .token_type = TokenType.EQUAL, .lexeme = "=", .literal = null };
                     }
                 } else {
-                    break :equals Token{ .token_type = TokenType.EQUAL, .lexeme = "=", .literal = null };
+                    break :switchReturn Token{ .token_type = TokenType.EQUAL, .lexeme = "=", .literal = null };
                 }
             },
             '!' => switchReturn: {
@@ -169,8 +169,10 @@ pub fn Tokenizer(source: *Input) ![]Token {
                         while (source.next()) |cSkip| {
                             if (cSkip == '\n') {
                                 line_number += 1;
-                                continue :mainLoop;
+                                break :switchReturn null;
                             }
+                        } else {
+                            break :switchReturn null;
                         }
                     } else {
                         break :switchReturn Token{ .token_type = TokenType.SLASH, .lexeme = "/", .literal = null };
@@ -181,7 +183,9 @@ pub fn Tokenizer(source: *Input) ![]Token {
             },
             else => Token{ .token_type = TokenType.INVALID_TOKEN, .lexeme = try std.fmt.allocPrint(std.heap.page_allocator, "{c}", .{c}), .literal = Literal{ .number = line_number } },
         };
-        try tokens.append(token);
+        if (token) |_| {
+            try tokens.append(token.?);
+        }
     }
     const token = Token{ .token_type = TokenType.EOF, .lexeme = "", .literal = null };
     try tokens.append(token);

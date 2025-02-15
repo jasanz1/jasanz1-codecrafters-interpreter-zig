@@ -54,6 +54,7 @@ pub const TokenType = enum {
     SLASH,
     DOT,
     STRING,
+    NUMBER,
     INVALID_TOKEN,
     EOF,
 };
@@ -80,6 +81,7 @@ pub fn printToken(token: Token) !void {
         TokenType.SLASH => "SLASH",
         TokenType.DOT => "DOT",
         TokenType.STRING => "STRING",
+        TokenType.NUMBER => "NUMBER",
         TokenType.INVALID_TOKEN => "INVALID_TOKEN",
     };
     if (token.literal) |literal| {
@@ -117,6 +119,7 @@ pub fn Tokenizer(source: *Input) ![]Token {
             '*' => Token{ .token_type = TokenType.STAR, .lexeme = "*", .literal = null },
             '.' => Token{ .token_type = TokenType.DOT, .lexeme = ".", .literal = null },
             '"' => try readString(source),
+            '0'...'9' => try readNumber(source, c),
             '=' => switchReturn: {
                 if (source.peek()) |cPeek| {
                     if (cPeek == '=') {
@@ -209,5 +212,29 @@ fn readString(source: *Input) !Token {
     const lexeme = try std.fmt.allocPrint(std.heap.page_allocator, "\"{s}\"", .{literal});
 
     const token = Token{ .token_type = TokenType.STRING, .lexeme = lexeme, .literal = Literal{ .string = literal } };
+    return token;
+}
+
+fn readNumber(source: *Input, current: u8) !Token {
+    var number = std.ArrayList(u8).init(std.heap.page_allocator);
+    try number.append(current);
+    while (source.next()) |c| {
+        if (c == ' ' or c == '\t' or c == '\n' or c == '\r') {
+            break;
+        } else if (c == '.') {
+            try number.append(c);
+            break;
+        } else if (c >= '0' and c <= '9') {
+            try number.append(c);
+        } else {
+            break;
+        }
+    }
+    if (number.items.len == 0) {
+        return error.NumberExpected;
+    }
+    const literal = try number.toOwnedSlice();
+    const lexeme = try std.fmt.allocPrint(std.heap.page_allocator, "{s}", .{literal});
+    const token = Token{ .token_type = TokenType.NUMBER, .lexeme = lexeme, .literal = Literal{ .number = std.fmt.parseInt(usize, literal, 10) catch unreachable } };
     return token;
 }

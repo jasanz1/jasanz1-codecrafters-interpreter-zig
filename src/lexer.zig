@@ -242,7 +242,6 @@ fn readNumber(source: *Input, current: u8) !Token {
             break;
         } else if (c == '.') {
             try number.append(c);
-            break;
         } else if (c >= '0' and c <= '9') {
             try number.append(c);
         } else {

@@ -96,7 +96,7 @@ pub fn printToken(token: Token) !void {
                 return error.UnexpectedCharacter;
             },
             TokenType.UNTERMINATED_STRING => {
-                try std.io.getStdErr().writer().print("[line {d}] Error: Unterminated string. \n", .{token.line_number});
+                try std.io.getStdErr().writer().print("[line {d}] Error: Unterminated string.\n", .{token.line_number});
                 return error.UnterminatedString;
             },
             else => {

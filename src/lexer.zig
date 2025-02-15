@@ -221,6 +221,7 @@ fn readString(source: *Input) !Token {
     var string = std.ArrayList(u8).init(std.heap.page_allocator);
     while (source.peek()) |c| {
         if (c == '"') {
+            _ = source.next();
             break;
         } else if (c == '\n' or c == '\r') {
             source.line_number += 1;

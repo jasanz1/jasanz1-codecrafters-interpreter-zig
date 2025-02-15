@@ -53,6 +53,7 @@ pub const TokenType = enum {
     GREATER,
     SLASH,
     DOT,
+    STRING,
     INVALID_TOKEN,
     EOF,
 };
@@ -78,6 +79,7 @@ pub fn printToken(token: Token) !void {
         TokenType.GREATER => "GREATER",
         TokenType.SLASH => "SLASH",
         TokenType.DOT => "DOT",
+        TokenType.STRING => "STRING",
         TokenType.INVALID_TOKEN => "INVALID_TOKEN",
     };
     if (token.literal) |literal| {
@@ -114,6 +116,7 @@ pub fn Tokenizer(source: *Input) ![]Token {
             '-' => Token{ .token_type = TokenType.MINUS, .lexeme = "-", .literal = null },
             '*' => Token{ .token_type = TokenType.STAR, .lexeme = "*", .literal = null },
             '.' => Token{ .token_type = TokenType.DOT, .lexeme = ".", .literal = null },
+            '"' => try readString(source),
             '=' => switchReturn: {
                 if (source.peek()) |cPeek| {
                     if (cPeek == '=') {
@@ -191,4 +194,20 @@ pub fn Tokenizer(source: *Input) ![]Token {
     try tokens.append(token);
 
     return tokens.toOwnedSlice();
+}
+
+fn readString(source: *Input) !Token {
+    var string = std.ArrayList(u8).init(std.heap.page_allocator);
+    while (source.next()) |c| {
+        if (c == '"') {
+            break;
+        } else {
+            try string.append(c);
+        }
+    }
+    const literal = try string.toOwnedSlice();
+    const lexeme = try std.fmt.allocPrint(std.heap.page_allocator, "\"{s}\"", .{literal});
+
+    const token = Token{ .token_type = TokenType.STRING, .lexeme = lexeme, .literal = Literal{ .string = literal } };
+    return token;
 }

@@ -43,6 +43,8 @@ pub const TokenType = enum {
     PLUS,
     MINUS,
     STAR,
+    EQUAL,
+    BANG,
     BANG_EQUAL,
     EQUAL_EQUAL,
     LESS_EQUAL,
@@ -66,6 +68,8 @@ pub fn printToken(token: Token) !void {
         TokenType.PLUS => "PLUS",
         TokenType.MINUS => "MINUS",
         TokenType.STAR => "STAR",
+        TokenType.EQUAL => "EQUAL",
+        TokenType.BANG => "BANG",
         TokenType.BANG_EQUAL => "BANG_EQUAL",
         TokenType.EQUAL_EQUAL => "EQUAL_EQUAL",
         TokenType.LESS_EQUAL => "LESS_EQUAL",
@@ -110,6 +114,71 @@ pub fn Tokenizer(source: *Input) ![]Token {
             '-' => Token{ .token_type = TokenType.MINUS, .lexeme = "-", .literal = null },
             '*' => Token{ .token_type = TokenType.STAR, .lexeme = "*", .literal = null },
             '.' => Token{ .token_type = TokenType.DOT, .lexeme = ".", .literal = null },
+            '=' => equals: {
+                if (source.peek()) |cPeek| {
+                    if (cPeek == '=') {
+                        _ = source.next() orelse return error.uhoh;
+                        break :equals Token{ .token_type = TokenType.EQUAL_EQUAL, .lexeme = "==", .literal = null };
+                    } else {
+                        break :equals Token{ .token_type = TokenType.EQUAL, .lexeme = "=", .literal = null };
+                    }
+                } else {
+                    break :equals Token{ .token_type = TokenType.EQUAL, .lexeme = "=", .literal = null };
+                }
+            },
+            '!' => switchReturn: {
+                if (source.peek()) |cPeek| {
+                    if (cPeek == '=') {
+                        _ = source.next() orelse return error.uhoh;
+                        break :switchReturn Token{ .token_type = TokenType.BANG_EQUAL, .lexeme = "!=", .literal = null };
+                    } else {
+                        break :switchReturn Token{ .token_type = TokenType.BANG, .lexeme = "!", .literal = null };
+                    }
+                } else {
+                    break :switchReturn Token{ .token_type = TokenType.BANG, .lexeme = "!", .literal = null };
+                }
+            },
+            '<' => switchReturn: {
+                if (source.peek()) |cPeek| {
+                    if (cPeek == '=') {
+                        _ = source.next() orelse return error.uhoh;
+                        break :switchReturn Token{ .token_type = TokenType.LESS_EQUAL, .lexeme = "<=", .literal = null };
+                    } else {
+                        break :switchReturn Token{ .token_type = TokenType.LESS, .lexeme = "<", .literal = null };
+                    }
+                } else {
+                    break :switchReturn Token{ .token_type = TokenType.LESS, .lexeme = "<", .literal = null };
+                }
+            },
+            '>' => switchReturn: {
+                if (source.peek()) |cPeek| {
+                    if (cPeek == '=') {
+                        _ = source.next() orelse return error.uhoh;
+                        break :switchReturn Token{ .token_type = TokenType.GREATER_EQUAL, .lexeme = ">=", .literal = null };
+                    } else {
+                        break :switchReturn Token{ .token_type = TokenType.GREATER, .lexeme = ">", .literal = null };
+                    }
+                } else {
+                    break :switchReturn Token{ .token_type = TokenType.GREATER, .lexeme = ">", .literal = null };
+                }
+            },
+            '/' => switchReturn: {
+                if (source.peek()) |cPeek| {
+                    if (cPeek == '/') {
+                        _ = source.next() orelse return error.uhoh;
+                        while (source.next()) |cSkip| {
+                            if (cSkip == '\n') {
+                                line_number += 1;
+                                break :switchReturn;
+                            }
+                        }
+                    } else {
+                        break :switchReturn Token{ .token_type = TokenType.SLASH, .lexeme = "/", .literal = null };
+                    }
+                } else {
+                    break :switchReturn Token{ .token_type = TokenType.SLASH, .lexeme = "/", .literal = null };
+                }
+            },
             else => Token{ .token_type = TokenType.INVALID_TOKEN, .lexeme = try std.fmt.allocPrint(std.heap.page_allocator, "{c}", .{c}), .literal = Literal{ .number = line_number } },
         };
         try tokens.append(token);

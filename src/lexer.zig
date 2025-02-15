@@ -58,6 +58,8 @@ pub const TokenType = enum {
     DOT,
     STRING,
     NUMBER,
+    IDENTIFIER,
+    KEYWORD,
     INVALID_TOKEN,
     UNTERMINATED_STRING,
     EOF,
@@ -86,6 +88,8 @@ pub fn printToken(token: Token) !void {
         TokenType.DOT => "DOT",
         TokenType.STRING => "STRING",
         TokenType.NUMBER => "NUMBER",
+        TokenType.IDENTIFIER => "IDENTIFIER",
+        TokenType.KEYWORD => "KEYWORD",
         TokenType.UNTERMINATED_STRING => "UNTERMINATED_STRING",
         TokenType.INVALID_TOKEN => "INVALID_TOKEN",
     };
@@ -205,7 +209,9 @@ pub fn Tokenizer(source: *Input) ![]Token {
                     break :switchReturn Token{ .line_number = source.line_number, .token_type = TokenType.SLASH, .lexeme = "/", .literal = null };
                 }
             },
-            else => Token{ .line_number = source.line_number, .token_type = TokenType.INVALID_TOKEN, .lexeme = try std.fmt.allocPrint(std.heap.page_allocator, "{c}", .{c}), .literal = null },
+            else => switchReturn: {
+                break :switchReturn try readIdentifer(source, c);
+            },
         };
         if (token) |_| {
             try tokens.append(token.?);
@@ -215,6 +221,34 @@ pub fn Tokenizer(source: *Input) ![]Token {
     try tokens.append(token);
 
     return tokens.toOwnedSlice();
+}
+
+fn readIdentifer(source: *Input, current: u8) !Token {
+    var identifier = std.ArrayList(u8).init(std.heap.page_allocator);
+    if (current != '_' and !std.ascii.isAlphanumeric(current)) {
+        return Token{ .line_number = source.line_number, .token_type = TokenType.INVALID_TOKEN, .lexeme = try std.fmt.allocPrint(std.heap.page_allocator, "{c}", .{current}), .literal = null };
+    }
+    try identifier.append(current);
+    while (source.peek()) |c| {
+        switch (c) {
+            ' ', '\t' => break,
+            '\n', '\r' => {
+                source.line_number += 1;
+                break;
+            },
+            'A'...'Z', 'a'...'z', '0'...'9', '_' => {
+                _ = source.next();
+                try identifier.append(c);
+            },
+            else => {
+                _ = source.next();
+                return Token{ .line_number = source.line_number, .token_type = TokenType.INVALID_TOKEN, .lexeme = try std.fmt.allocPrint(std.heap.page_allocator, "{c}", .{identifier.items}), .literal = null };
+            },
+        }
+    }
+    const lexeme = try std.fmt.allocPrint(std.heap.page_allocator, "{s}", .{identifier.items});
+    const token = Token{ .line_number = source.line_number, .token_type = TokenType.IDENTIFIER, .lexeme = lexeme, .literal = null };
+    return token;
 }
 
 fn readString(source: *Input) !Token {

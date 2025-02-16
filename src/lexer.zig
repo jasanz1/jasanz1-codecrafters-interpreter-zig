@@ -266,15 +266,16 @@ fn readNumber(source: *Input, current: u8) !Token {
     return token;
 }
 fn readmultiCharacterEqualToken(source: *Input, single_token_type: TokenType, multi_tokenType: TokenType, current: u8) !Token {
+    const current_str: []const u8 = &[1]u8{current};
     if (source.peek()) |cPeek| {
         if (cPeek == '=') {
             _ = source.next() orelse return error.uhoh;
             const lexeme = try std.fmt.allocPrint(std.heap.page_allocator, "{c}{c}", .{ current, cPeek });
             return Token{ .line_number = source.line_number, .token_type = multi_tokenType, .lexeme = lexeme, .literal = null };
         } else {
-            return Token{ .line_number = source.line_number, .token_type = single_token_type, .lexeme = &[1]u8{current}, .literal = null };
+            return Token{ .line_number = source.line_number, .token_type = single_token_type, .lexeme = current_str, .literal = null };
         }
     } else {
-        return Token{ .line_number = source.line_number, .token_type = TokenType.EQUAL, .lexeme = &[1]u8{current}, .literal = null };
+        return Token{ .line_number = source.line_number, .token_type = TokenType.EQUAL, .lexeme = current_str, .literal = null };
     }
 }

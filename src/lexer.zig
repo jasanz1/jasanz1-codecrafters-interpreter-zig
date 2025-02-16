@@ -59,40 +59,28 @@ pub const TokenType = enum {
     STRING,
     NUMBER,
     IDENTIFIER,
-    KEYWORD,
+    AND,
+    CLASS,
+    ELSE,
+    FALSE,
+    FOR,
+    FUN,
+    IF,
+    NIL,
+    OR,
+    PRINT,
+    RETURN,
+    SUPER,
+    THIS,
+    TRUE,
+    VAR,
+    WHILE,
     INVALID_TOKEN,
     UNTERMINATED_STRING,
     EOF,
 };
 pub fn printToken(token: Token) !void {
-    const token_type = switch (token.token_type) {
-        TokenType.EOF => "EOF",
-        TokenType.LEFT_PAREN => "LEFT_PAREN",
-        TokenType.RIGHT_PAREN => "RIGHT_PAREN",
-        TokenType.LEFT_BRACE => "LEFT_BRACE",
-        TokenType.RIGHT_BRACE => "RIGHT_BRACE",
-        TokenType.SEMICOLON => "SEMICOLON",
-        TokenType.COMMA => "COMMA",
-        TokenType.PLUS => "PLUS",
-        TokenType.MINUS => "MINUS",
-        TokenType.STAR => "STAR",
-        TokenType.EQUAL => "EQUAL",
-        TokenType.BANG => "BANG",
-        TokenType.BANG_EQUAL => "BANG_EQUAL",
-        TokenType.EQUAL_EQUAL => "EQUAL_EQUAL",
-        TokenType.LESS_EQUAL => "LESS_EQUAL",
-        TokenType.GREATER_EQUAL => "GREATER_EQUAL",
-        TokenType.LESS => "LESS",
-        TokenType.GREATER => "GREATER",
-        TokenType.SLASH => "SLASH",
-        TokenType.DOT => "DOT",
-        TokenType.STRING => "STRING",
-        TokenType.NUMBER => "NUMBER",
-        TokenType.IDENTIFIER => "IDENTIFIER",
-        TokenType.KEYWORD => "KEYWORD",
-        TokenType.UNTERMINATED_STRING => "UNTERMINATED_STRING",
-        TokenType.INVALID_TOKEN => "INVALID_TOKEN",
-    };
+    const token_type = @tagName(token.token_type);
     if (token.literal) |literal| {
         switch (literal) {
             .number => |number| {
@@ -123,6 +111,23 @@ pub fn printToken(token: Token) !void {
 }
 pub fn Tokenizer(source: *Input) ![]Token {
     var tokens = std.ArrayList(Token).init(std.heap.page_allocator);
+    var keyword_map = std.StringHashMap(TokenType).init(std.heap.page_allocator);
+    try keyword_map.put("and", TokenType.AND);
+    try keyword_map.put("class", TokenType.CLASS);
+    try keyword_map.put("else", TokenType.ELSE);
+    try keyword_map.put("false", TokenType.FALSE);
+    try keyword_map.put("for", TokenType.FOR);
+    try keyword_map.put("fun", TokenType.FUN);
+    try keyword_map.put("if", TokenType.IF);
+    try keyword_map.put("nil", TokenType.NIL);
+    try keyword_map.put("or", TokenType.OR);
+    try keyword_map.put("print", TokenType.PRINT);
+    try keyword_map.put("return", TokenType.RETURN);
+    try keyword_map.put("super", TokenType.SUPER);
+    try keyword_map.put("this", TokenType.THIS);
+    try keyword_map.put("true", TokenType.TRUE);
+    try keyword_map.put("var", TokenType.VAR);
+    try keyword_map.put("while", TokenType.WHILE);
     while (source.next()) |c| {
         const token: ?Token = switch (c) {
             ' ', '\t' => continue,
@@ -142,54 +147,10 @@ pub fn Tokenizer(source: *Input) ![]Token {
             '.' => Token{ .line_number = source.line_number, .token_type = TokenType.DOT, .lexeme = ".", .literal = null },
             '"' => try readString(source),
             '0'...'9' => try readNumber(source, c),
-            '=' => switchReturn: {
-                if (source.peek()) |cPeek| {
-                    if (cPeek == '=') {
-                        _ = source.next() orelse return error.uhoh;
-                        break :switchReturn Token{ .line_number = source.line_number, .token_type = TokenType.EQUAL_EQUAL, .lexeme = "==", .literal = null };
-                    } else {
-                        break :switchReturn Token{ .line_number = source.line_number, .token_type = TokenType.EQUAL, .lexeme = "=", .literal = null };
-                    }
-                } else {
-                    break :switchReturn Token{ .line_number = source.line_number, .token_type = TokenType.EQUAL, .lexeme = "=", .literal = null };
-                }
-            },
-            '!' => switchReturn: {
-                if (source.peek()) |cPeek| {
-                    if (cPeek == '=') {
-                        _ = source.next() orelse return error.uhoh;
-                        break :switchReturn Token{ .line_number = source.line_number, .token_type = TokenType.BANG_EQUAL, .lexeme = "!=", .literal = null };
-                    } else {
-                        break :switchReturn Token{ .line_number = source.line_number, .token_type = TokenType.BANG, .lexeme = "!", .literal = null };
-                    }
-                } else {
-                    break :switchReturn Token{ .line_number = source.line_number, .token_type = TokenType.BANG, .lexeme = "!", .literal = null };
-                }
-            },
-            '<' => switchReturn: {
-                if (source.peek()) |cPeek| {
-                    if (cPeek == '=') {
-                        _ = source.next() orelse return error.uhoh;
-                        break :switchReturn Token{ .line_number = source.line_number, .token_type = TokenType.LESS_EQUAL, .lexeme = "<=", .literal = null };
-                    } else {
-                        break :switchReturn Token{ .line_number = source.line_number, .token_type = TokenType.LESS, .lexeme = "<", .literal = null };
-                    }
-                } else {
-                    break :switchReturn Token{ .line_number = source.line_number, .token_type = TokenType.LESS, .lexeme = "<", .literal = null };
-                }
-            },
-            '>' => switchReturn: {
-                if (source.peek()) |cPeek| {
-                    if (cPeek == '=') {
-                        _ = source.next() orelse return error.uhoh;
-                        break :switchReturn Token{ .line_number = source.line_number, .token_type = TokenType.GREATER_EQUAL, .lexeme = ">=", .literal = null };
-                    } else {
-                        break :switchReturn Token{ .line_number = source.line_number, .token_type = TokenType.GREATER, .lexeme = ">", .literal = null };
-                    }
-                } else {
-                    break :switchReturn Token{ .line_number = source.line_number, .token_type = TokenType.GREATER, .lexeme = ">", .literal = null };
-                }
-            },
+            '=' => try readmultiCharacterEqualToken(source, TokenType.EQUAL, TokenType.EQUAL_EQUAL, c),
+            '!' => try readmultiCharacterEqualToken(source, TokenType.BANG, TokenType.BANG_EQUAL, c),
+            '<' => try readmultiCharacterEqualToken(source, TokenType.LESS, TokenType.LESS_EQUAL, c),
+            '>' => try readmultiCharacterEqualToken(source, TokenType.GREATER, TokenType.GREATER_EQUAL, c),
             '/' => switchReturn: {
                 if (source.peek()) |cPeek| {
                     if (cPeek == '/') {
@@ -210,7 +171,12 @@ pub fn Tokenizer(source: *Input) ![]Token {
                 }
             },
             else => switchReturn: {
-                break :switchReturn try readIdentifer(source, c);
+                const identifier = try readIdentifer(source, c);
+
+                if (keyword_map.get(identifier.lexeme)) |keyword| {
+                    break :switchReturn Token{ .line_number = source.line_number, .token_type = keyword, .lexeme = identifier.lexeme, .literal = null };
+                }
+                break :switchReturn identifier;
             },
         };
         if (token) |_| {
@@ -298,4 +264,17 @@ fn readNumber(source: *Input, current: u8) !Token {
     const lexeme = try std.fmt.allocPrint(std.heap.page_allocator, "{s}", .{literal});
     const token = Token{ .line_number = source.line_number, .token_type = TokenType.NUMBER, .lexeme = lexeme, .literal = Literal{ .number = std.fmt.parseFloat(f64, literal) catch unreachable } };
     return token;
+}
+fn readmultiCharacterEqualToken(source: *Input, single_token_type: TokenType, multi_tokenType: TokenType, current: u8) !Token {
+    if (source.peek()) |cPeek| {
+        if (cPeek == '=') {
+            _ = source.next() orelse return error.uhoh;
+            const lexeme = try std.fmt.allocPrint(std.heap.page_allocator, "{c}{c}", .{ current, cPeek });
+            return Token{ .line_number = source.line_number, .token_type = multi_tokenType, .lexeme = lexeme, .literal = null };
+        } else {
+            return Token{ .line_number = source.line_number, .token_type = single_token_type, .lexeme = &[1]u8{current}, .literal = null };
+        }
+    } else {
+        return Token{ .line_number = source.line_number, .token_type = TokenType.EQUAL, .lexeme = &[1]u8{current}, .literal = null };
+    }
 }

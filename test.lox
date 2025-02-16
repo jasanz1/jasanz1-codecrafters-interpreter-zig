@@ -6,3 +6,4 @@ num1 = 100
 num2 = 200.00
 result = (str1 == str2) != ((num1 + num2) >= 300)
 }
+and

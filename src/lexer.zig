@@ -285,6 +285,6 @@ fn readmultiCharacterEqualToken(source: *Input, single_token_type: TokenType, mu
             return Token{ .line_number = source.line_number, .token_type = single_token_type, .lexeme = current_str, .literal = null };
         }
     } else {
-        return Token{ .line_number = source.line_number, .token_type = TokenType.EQUAL, .lexeme = current_str, .literal = null };
+        return Token{ .line_number = source.line_number, .token_type = single_token_type, .lexeme = current_str, .literal = null };
     }
 }

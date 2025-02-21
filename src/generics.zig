@@ -7,7 +7,7 @@ pub fn makeInput(comptime value_type: type) type {
         /// The peek function returns the next value_type in the source slice without advancing the index, or null if there are no more values.
         source: []const value_type,
         index: usize = 0,
-        line_number: usize = 0,
+        line_number: usize = 1,
         const Self = @This();
         pub fn next(self: *Self) ?value_type {
             if (self.index >= self.source.len) {

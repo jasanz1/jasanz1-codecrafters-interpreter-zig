@@ -91,8 +91,11 @@ pub fn printToken(token: Token) !void {
 }
 
 pub fn printTokens(tokens: []Token) !void {
+    var errors: std.ArrayList(anyerror) = std.ArrayList(anyerror).init(std.heap.page_allocator);
     for (tokens) |token| {
-        try printToken(token);
+        if (printToken(token)) |_| {} else |err| {
+            try errors.append(err);
+        }
     }
     return;
 }

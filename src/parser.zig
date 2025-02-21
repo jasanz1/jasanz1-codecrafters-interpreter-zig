@@ -106,7 +106,7 @@ fn expression(input: *Input) !Expression {
             .ELSE => @panic("TODO"),
             .FOR => @panic("TODO"),
             .FUN => @panic("TODO"),
-            .IF => @panic("TODO"),
+            .IF => @panic("TODO IF"),
             .OR => @panic("TODO"),
             .PRINT => @panic("TODO"),
             .RETURN => @panic("TODO"),

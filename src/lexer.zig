@@ -90,6 +90,12 @@ pub fn printToken(token: Token) !void {
     }
 }
 
+pub fn printTokens(tokens: []Token) !void {
+    for (tokens) |token| {
+        try printToken(token);
+    }
+}
+
 pub fn errorCheck(token: []Token) !void {
     for (token) |t| {
         switch (t.token_type) {

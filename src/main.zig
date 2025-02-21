@@ -31,6 +31,7 @@ pub fn main() !u8 {
         const tokens = try lexer.Tokenizer(&tokenizerInput);
         defer std.heap.page_allocator.free(tokens);
         if (std.mem.eql(u8, command, "tokenize")) {
+            try lexer.printTokens(tokens);
             break :errored;
         }
         if (lexer.errorCheck(tokens)) |_| {} else |err| {

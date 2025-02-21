@@ -69,6 +69,7 @@ pub fn printToken(token: Token) !void {
                     return;
                 } else {
                     try std.io.getStdOut().writer().print("{s} {s} {d}\n", .{ token_type, token.lexeme, number });
+                    return;
                 }
             },
             .string => |string| try std.io.getStdOut().writer().print("{s} {s} {s}\n", .{ token_type, token.lexeme, string }),
@@ -85,19 +86,22 @@ pub fn printToken(token: Token) !void {
             },
             else => {
                 try std.io.getStdOut().writer().print("{s} {s} null\n", .{ token_type, token.lexeme });
+                return;
             },
         }
     }
 }
 
 pub fn printTokens(tokens: []Token) !void {
-    var errors: std.ArrayList(anyerror) = std.ArrayList(anyerror).init(std.heap.page_allocator);
+    var errors: ?anyerror = null;
     for (tokens) |token| {
-        if (printToken(token)) |_| {} else |err| {
-            try errors.append(err);
-        }
+        printToken(token) catch |err| {
+            if (errors == null) {
+                errors = err;
+            }
+        };
     }
-    return;
+    return errors orelse return;
 }
 
 pub fn errorCheck(token: []Token) !void {

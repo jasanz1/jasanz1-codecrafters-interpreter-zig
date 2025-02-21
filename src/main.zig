@@ -26,34 +26,30 @@ pub fn main() !u8 {
     var errored: ?anyerror = null;
 
     // Uncomment this block to pass the first stage
-    if (file_contents.len > 0) errored: {
+    if (file_contents.len > 0) earlyReturn: {
         var tokenizerInput = lexer.Input{ .source = file_contents };
         const tokens = try lexer.Tokenizer(&tokenizerInput);
         defer std.heap.page_allocator.free(tokens);
         if (std.mem.eql(u8, command, "tokenize")) {
-            if (lexer.printTokens(tokens)) |_| {
-                break :errored;
-            } else |err| {
+            lexer.printTokens(tokens) catch |err| {
                 errored = err;
-                break :errored;
-            }
+            };
+            break :earlyReturn;
         }
         if (lexer.errorCheck(tokens)) |_| {} else |err| {
             errored = err;
-            break :errored;
+            break :earlyReturn;
         }
         var pasterInput = parser.Input{ .source = tokens };
         const ast = try parser.parser(&pasterInput);
         if (std.mem.eql(u8, command, "parse")) {
-            if (parser.printExpression(&ast)) |_| {
-                break :errored;
-            } else |err| {
+            parser.printExpression(&ast) catch |err| {
                 errored = err;
-                break :errored;
-            }
+            };
+            break :earlyReturn;
         }
         if (std.mem.eql(u8, command, "parse")) {
-            break :errored;
+            break :earlyReturn;
         }
         // if (parser.errorCheck(tokens)) |err| {
         //     break :errored err;

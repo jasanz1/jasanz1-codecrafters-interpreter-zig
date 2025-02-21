@@ -1,5 +1,6 @@
 const std = @import("std");
 const lexer = @import("lexer.zig");
+const parser = @import("parser.zig");
 pub fn main() !u8 {
     // You can use print statements as follows for debugging, they'll be visible when running tests.
     std.debug.print("Logs from your program will appear here!\n", .{});
@@ -15,7 +16,7 @@ pub fn main() !u8 {
     const command = args[1];
     const filename = args[2];
 
-    if (!std.mem.eql(u8, command, "tokenize")) {
+    if (!std.mem.eql(u8, command, "tokenize") and !std.mem.eql(u8, command, "parse")) {
         std.debug.print("Unknown command: {s}\n", .{command});
         std.process.exit(1);
     }
@@ -25,22 +26,29 @@ pub fn main() !u8 {
     var errored: ?anyerror = null;
 
     // Uncomment this block to pass the first stage
-    if (file_contents.len > 0) {
-        var input = lexer.makeInput(file_contents);
-        const tokens = try lexer.Tokenizer(&input);
+    if (file_contents.len > 0) errored: {
+        var tokenizerInput = lexer.Input{ .source = file_contents };
+        const tokens = try lexer.Tokenizer(&tokenizerInput);
         defer std.heap.page_allocator.free(tokens);
-        for (tokens) |token| {
-            if (lexer.printToken(token)) |_| {} else |err| {
-                errored = err;
-            }
+        if (std.mem.eql(u8, command, "tokenize")) {
+            break :errored;
         }
-    } else {
-        try std.io.getStdOut().writer().print("EOF  null\n", .{}); // Placeholder, remove this line when implementing the scanner
+        if (lexer.errorCheck(tokens)) |_| {} else |err| {
+            errored = err;
+            break :errored;
+        }
+        var pasterInput = parser.Input{ .source = tokens };
+        const ast = try parser.parser(&pasterInput);
+        try parser.printExpression(&ast);
+        if (std.mem.eql(u8, command, "parse")) {
+            break :errored;
+        }
+        // if (parser.errorCheck(tokens)) |err| {
+        //     break :errored err;
+        // }
     }
-    if (errored) |err| {
-        if (err == error.UnexpectedCharacter or err == error.UnterminatedString or err == error.NumberExpected) {
-            return 65;
-        }
+    if (errored) |_| {
+        return 65;
     }
     return 0;
 }

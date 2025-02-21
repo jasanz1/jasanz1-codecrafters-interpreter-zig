@@ -1,31 +1,9 @@
 const std = @import("std");
-pub const Input = struct {
-    source: []const u8,
-    index: usize,
-    line_number: usize,
-    fn next(self: *Input) ?u8 {
-        if (self.index >= self.source.len) {
-            return null;
-        }
-        defer self.index += 1;
-        return self.source[self.index];
-    }
-    fn peek(self: *Input) ?u8 {
-        if (self.index >= self.source.len) {
-            return null;
-        }
-        return self.source[self.index];
-    }
-};
-pub fn makeInput(source: []const u8) Input {
-    return Input{
-        .source = source,
-        .index = 0,
-        .line_number = 1,
-    };
-}
-
-const Token = struct {
+/// A generic input struct that can be used to read from a slice of any type.
+/// This is used to tokenize the input.
+pub const Input = @import("generics.zig").makeInput(u8);
+pub const Token = struct {
+    /// A token struct that contains the lexeme, type, and literal value of a token.
     line_number: usize,
     token_type: TokenType,
     lexeme: []const u8,
@@ -33,10 +11,12 @@ const Token = struct {
 };
 
 pub const Literal = union(enum) {
+    /// A union of all possible literal values.
     number: f64,
     string: []const u8,
 };
 pub const TokenType = enum {
+    /// A union of all possible token types.
     LEFT_PAREN,
     RIGHT_PAREN,
     LEFT_BRACE,
@@ -109,6 +89,21 @@ pub fn printToken(token: Token) !void {
         }
     }
 }
+
+pub fn errorCheck(token: []Token) !void {
+    for (token) |t| {
+        switch (t.token_type) {
+            TokenType.INVALID_TOKEN => {
+                return error.UnexpectedCharacter;
+            },
+            TokenType.UNTERMINATED_STRING => {
+                return error.UnterminatedString;
+            },
+            else => {},
+        }
+    }
+}
+
 pub fn Tokenizer(source: *Input) ![]Token {
     var tokens = std.ArrayList(Token).init(std.heap.page_allocator);
     var keyword_map = std.StringHashMap(TokenType).init(std.heap.page_allocator);

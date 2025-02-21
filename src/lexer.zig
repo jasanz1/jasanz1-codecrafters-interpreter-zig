@@ -94,6 +94,7 @@ pub fn printTokens(tokens: []Token) !void {
     for (tokens) |token| {
         try printToken(token);
     }
+    return;
 }
 
 pub fn errorCheck(token: []Token) !void {

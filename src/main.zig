@@ -31,8 +31,12 @@ pub fn main() !u8 {
         const tokens = try lexer.Tokenizer(&tokenizerInput);
         defer std.heap.page_allocator.free(tokens);
         if (std.mem.eql(u8, command, "tokenize")) {
-            errored = lexer.printTokens(tokens);
-            break :errored;
+            if (lexer.printTokens(tokens)) |_| {
+                break :errored;
+            } else |err| {
+                errored = err;
+                break :errored;
+            }
         }
         if (lexer.errorCheck(tokens)) |_| {} else |err| {
             errored = err;
@@ -41,8 +45,12 @@ pub fn main() !u8 {
         var pasterInput = parser.Input{ .source = tokens };
         const ast = try parser.parser(&pasterInput);
         if (std.mem.eql(u8, command, "parse")) {
-            errored = parser.printExpression(&ast);
-            break :errored;
+            if (parser.printExpression(&ast)) |_| {
+                break :errored;
+            } else |err| {
+                errored = err;
+                break :errored;
+            }
         }
         if (std.mem.eql(u8, command, "parse")) {
             break :errored;

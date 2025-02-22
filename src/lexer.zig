@@ -64,6 +64,7 @@ pub fn printToken(token: Token) !void {
     if (token.literal) |literal| {
         switch (literal) {
             .number => |number| {
+                //dont know of a clean way to set min precision
                 if (@ceil(number) == number) {
                     try std.io.getStdOut().writer().print("{s} {s} {d}.0\n", .{ token_type, token.lexeme, number });
                     return;

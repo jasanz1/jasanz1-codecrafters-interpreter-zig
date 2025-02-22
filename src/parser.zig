@@ -54,6 +54,7 @@ pub fn printExpression(expressionTree: *const Expression) !void {
         .literal => |literal| {
             switch (literal) {
                 .NUMBER => |number| {
+                    //dont know of a clean way to set min precision
                     if (@ceil(number) == number) {
                         try std.io.getStdOut().writer().print("{d}.0\n", .{number});
                         return;
@@ -63,7 +64,7 @@ pub fn printExpression(expressionTree: *const Expression) !void {
                     }
                 },
 
-                .STRING => |string| try std.io.getStdOut().writer().print("\"{s}\"", .{string}),
+                .STRING => |string| try std.io.getStdOut().writer().print("{s}", .{string}),
                 .NIL => try std.io.getStdOut().writer().print("nil", .{}),
                 .TRUE => try std.io.getStdOut().writer().print("true", .{}),
                 .FALSE => try std.io.getStdOut().writer().print("false", .{}),

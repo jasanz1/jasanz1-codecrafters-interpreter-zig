@@ -71,29 +71,38 @@ pub fn printExpression(expressionTree: *const Expression) !void {
             }
         },
         .grouping => |grouping| {
-            try std.io.getStdOut().writer().print("(", .{});
+            try std.io.getStdOut().writer().print("(group ", .{});
             try printExpression(grouping);
             try std.io.getStdOut().writer().print(")", .{});
         },
     }
-    try std.io.getStdOut().writer().print("\n", .{});
 }
 
 pub fn parser(input: *Input) !Expression {
-    return try expression(input);
+    var context = std.ArrayList(u8).init(std.heap.page_allocator);
+    defer context.deinit();
+    const expression_tree = try expression(input, &context);
+    return expression_tree.*;
 }
 
-fn expression(input: *Input) !Expression {
+fn expression(input: *Input, context: *std.ArrayList(u8)) !*Expression {
+    const new_expression = std.heap.page_allocator.create(Expression) catch unreachable;
     if (input.peek()) |c| {
         _ = input.next();
-        return switch (c.token_type) {
-            .TRUE => Expression{ .literal = .{ .TRUE = {} } },
-            .FALSE => Expression{ .literal = .{ .FALSE = {} } },
-            .NIL => Expression{ .literal = .{ .NIL = {} } },
-            .NUMBER => Expression{ .literal = .{ .NUMBER = c.literal.?.number } },
-            .STRING => Expression{ .literal = .{ .STRING = c.literal.?.string } },
-            .LEFT_PAREN => @panic("TODO"),
-            .RIGHT_PAREN => @panic("TODO"),
+        switch (c.token_type) {
+            .TRUE => new_expression.* = Expression{ .literal = .{ .TRUE = {} } },
+            .FALSE => new_expression.* = Expression{ .literal = .{ .FALSE = {} } },
+            .NIL => new_expression.* = Expression{ .literal = .{ .NIL = {} } },
+            .NUMBER => new_expression.* = Expression{ .literal = .{ .NUMBER = c.literal.?.number } },
+            .STRING => new_expression.* = Expression{ .literal = .{ .STRING = c.literal.?.string } },
+            .LEFT_PAREN => {
+                context.append('(') catch unreachable;
+                const group_expression = expression(input, context) catch return error.UnterminatedGroup;
+                new_expression.* = Expression{ .grouping = group_expression };
+            },
+            .RIGHT_PAREN => {
+                _ = context.pop();
+            },
             .LEFT_BRACE => @panic("TODO"),
             .RIGHT_BRACE => @panic("TODO"),
             .SEMICOLON => @panic("TODO"),
@@ -127,8 +136,14 @@ fn expression(input: *Input) !Expression {
             .DOT => @panic("TODO"),
             .INVALID_TOKEN => @panic("TODO"),
             .UNTERMINATED_STRING => @panic("TODO"),
-            .EOF => @panic("TODO"),
-        };
+            // i dont like this
+            .EOF => {
+                if (context.items.len > 0) {
+                    return error.EOF;
+                }
+            },
+        }
+        return new_expression;
     }
     return error.syntaxError;
 }

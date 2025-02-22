@@ -56,10 +56,10 @@ pub fn printExpression(expressionTree: *const Expression) !void {
                 .NUMBER => |number| {
                     //dont know of a clean way to set min precision
                     if (@ceil(number) == number) {
-                        try std.io.getStdOut().writer().print("{d}.0\n", .{number});
+                        try std.io.getStdOut().writer().print("{d}.0", .{number});
                         return;
                     } else {
-                        try std.io.getStdOut().writer().print("{d}\n", .{number});
+                        try std.io.getStdOut().writer().print("{d}", .{number});
                         return;
                     }
                 },

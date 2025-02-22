@@ -53,7 +53,16 @@ pub fn printExpression(expressionTree: *const Expression) !void {
         },
         .literal => |literal| {
             switch (literal) {
-                .NUMBER => |number| try std.io.getStdOut().writer().print("{d}", .{number}),
+                .NUMBER => |number| {
+                    if (@ceil(number) == number) {
+                        try std.io.getStdOut().writer().print("{d}.0\n", .{number});
+                        return;
+                    } else {
+                        try std.io.getStdOut().writer().print("{d}\n", .{number});
+                        return;
+                    }
+                },
+
                 .STRING => |string| try std.io.getStdOut().writer().print("\"{s}\"", .{string}),
                 .NIL => try std.io.getStdOut().writer().print("nil", .{}),
                 .TRUE => try std.io.getStdOut().writer().print("true", .{}),

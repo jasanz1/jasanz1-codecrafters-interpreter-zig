@@ -1,8 +1,9 @@
 const std = @import("std");
 const Token = @import("lexer.zig").Token;
+const TokenType = @import("lexer.zig").TokenType;
 pub const Input = @import("generics.zig").makeInput(Token);
 
-const OperatorType = enum {
+const Operator = enum {
     PLUS,
     MINUS,
     STAR,
@@ -14,12 +15,8 @@ const OperatorType = enum {
     GREATER,
     LESS_EQUAL,
     GREATER_EQUAL,
-};
-
-const Operator = struct {
-    operator: OperatorType,
-    pub fn char(self: *const Operator) u8 {
-        return switch (self.operator) {
+    pub fn char(self: Operator) u8 {
+        return switch (self) {
             .PLUS => '+',
             .MINUS => '-',
             .STAR => '*',
@@ -45,9 +42,11 @@ const Expression = union(enum) {
 pub fn printExpression(expressionTree: *const Expression) !void {
     switch (expressionTree.*) {
         .binary => |*binary| {
-            try std.io.getStdOut().writer().print("{c} ", .{binary.operator.char()});
+            try std.io.getStdOut().writer().print("({c} ", .{binary.operator.char()});
             try printExpression(binary.left);
+            try std.io.getStdOut().writer().print(" ", .{});
             try printExpression(binary.right);
+            try std.io.getStdOut().writer().print(")", .{});
         },
         .unary => |unary| {
             try std.io.getStdOut().writer().print("({c} ", .{unary.operator.char()});
@@ -88,7 +87,16 @@ pub fn parser(input: *Input) !Expression {
     return expression_tree.*;
 }
 
-fn expression(input: *Input, context: *std.ArrayList(u8)) !*Expression {
+fn expression(input: *Input, context: *std.ArrayList(u8)) error{ UnterminatedBinary, UnterminatedUnary, UnterminatedGroup }!*Expression {
+    var expresion_helper: ?*Expression = null;
+    while (input.peek()) |_| {
+        expresion_helper = expressionHelper(input, context, expresion_helper) catch return error.UnterminatedBinary;
+        std.debug.print("new_expression: {any}\n", .{expresion_helper});
+    }
+    return expresion_helper.?;
+}
+
+fn expressionHelper(input: *Input, context: *std.ArrayList(u8), previous: ?*Expression) !*Expression {
     const new_expression = std.heap.page_allocator.create(Expression) catch unreachable;
     if (input.peek()) |c| {
         _ = input.next();
@@ -112,11 +120,19 @@ fn expression(input: *Input, context: *std.ArrayList(u8)) !*Expression {
             .COMMA => @panic("TODO"),
             .PLUS => @panic("TODO"),
             .MINUS => {
-                new_expression.* = Expression{ .unary = .{ .operator = Operator{ .operator = .MINUS }, .right = expression(input, context) catch return error.UnterminatedUnary } };
+                new_expression.* = Expression{ .unary = .{ .operator = .MINUS, .right = expressionHelper(input, context, null) catch return error.UnterminatedUnary } };
             },
-            .STAR => @panic("TODO"),
-            .SLASH => @panic("TODO"),
-            .BANG => new_expression.* = Expression{ .unary = .{ .operator = Operator{ .operator = .BANG }, .right = expression(input, context) catch return error.UnterminatedUnary } },
+            .STAR => {
+                const right = expressionHelper(input, context, null) catch return error.UnterminatedBinary;
+                std.debug.print("star: {any}\n", .{right});
+                new_expression.* = Expression{ .binary = .{ .left = previous orelse return error.UnterminatedBinary, .operator = .STAR, .right = right } };
+            },
+            .SLASH => {
+                const right = expressionHelper(input, context, null) catch return error.UnterminatedBinary;
+                std.debug.print("star: {any}\n", .{right});
+                new_expression.* = Expression{ .binary = .{ .left = previous orelse return error.UnterminatedBinary, .operator = .SLASH, .right = right } };
+            },
+            .BANG => new_expression.* = Expression{ .unary = .{ .operator = .BANG, .right = expressionHelper(input, context, null) catch return error.UnterminatedUnary } },
             .BANG_EQUAL => @panic("TODO"),
             .EQUAL => @panic("TODO"),
             .EQUAL_EQUAL => @panic("TODO"),
@@ -148,7 +164,26 @@ fn expression(input: *Input, context: *std.ArrayList(u8)) !*Expression {
                 }
             },
         }
-        return new_expression;
+        if (c.token_type == .EOF) {
+            return previous.?;
+        }
     }
-    return error.syntaxError;
+    return new_expression;
+}
+
+fn tokenTypeIsOperator(token_type: TokenType) ?Operator {
+    return switch (token_type) {
+        .PLUS => Operator.PLUS,
+        .MINUS => Operator.MINUS,
+        .STAR => Operator.STAR,
+        .SLASH => Operator.SLASH,
+        .BANG => Operator.BANG,
+        .BANG_EQUAL => Operator.BANG_EQUAL,
+        .EQUAL_EQUAL => Operator.EQUAL_EQUAL,
+        .LESS => Operator.LESS,
+        .GREATER => Operator.GREATER,
+        .LESS_EQUAL => Operator.LESS_EQUAL,
+        .GREATER_EQUAL => Operator.GREATER_EQUAL,
+        else => null,
+    };
 }

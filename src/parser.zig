@@ -17,7 +17,8 @@ const OperatorType = enum {
 
 const Operator = struct {
     operator: OperatorType,
-    pub fn char(self: *const Operator) u8 {
+    const Self = @This();
+    pub fn char(self: *Self) u8 {
         return switch (self.operator) {
             .PLUS => '+',
             .MINUS => '-',
@@ -108,10 +109,12 @@ fn expression(input: *Input, context: *std.ArrayList(u8)) !*Expression {
             .SEMICOLON => @panic("TODO"),
             .COMMA => @panic("TODO"),
             .PLUS => @panic("TODO"),
-            .MINUS => @panic("TODO"),
+            .MINUS => {
+                new_expression.* = Expression{ .unary = .{ .operator = Operator{ .operator = .MINUS }, .right = expression(input, context) catch return error.UnterminatedUnary } };
+            },
             .STAR => @panic("TODO"),
             .SLASH => @panic("TODO"),
-            .BANG => @panic("TODO"),
+            .BANG => new_expression.* = Expression{ .unary = .{ .operator = Operator{ .operator = .BANG }, .right = expression(input, context) catch return error.UnterminatedUnary } },
             .BANG_EQUAL => @panic("TODO"),
             .EQUAL => @panic("TODO"),
             .EQUAL_EQUAL => @panic("TODO"),
@@ -139,7 +142,7 @@ fn expression(input: *Input, context: *std.ArrayList(u8)) !*Expression {
             // i dont like this
             .EOF => {
                 if (context.items.len > 0) {
-                    return error.EOF;
+                    return error.earlyEOF;
                 }
             },
         }

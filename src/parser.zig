@@ -7,6 +7,7 @@ const OperatorType = enum {
     MINUS,
     STAR,
     SLASH,
+    BANG,
     BANG_EQUAL,
     EQUAL_EQUAL,
     LESS,
@@ -17,13 +18,13 @@ const OperatorType = enum {
 
 const Operator = struct {
     operator: OperatorType,
-    const Self = @This();
-    pub fn char(self: *Self) u8 {
+    pub fn char(self: *const Operator) u8 {
         return switch (self.operator) {
             .PLUS => '+',
             .MINUS => '-',
             .STAR => '*',
             .SLASH => '/',
+            .BANG => '!',
             .BANG_EQUAL => '!',
             .EQUAL_EQUAL => '=',
             .LESS => '<',
@@ -49,8 +50,9 @@ pub fn printExpression(expressionTree: *const Expression) !void {
             try printExpression(binary.right);
         },
         .unary => |unary| {
-            // try std.io.getStdOut().writer().print(" {s} ", .{@tagName(unary.operator)});
+            try std.io.getStdOut().writer().print("({c} ", .{unary.operator.char()});
             try printExpression(unary.right);
+            try std.io.getStdOut().writer().print(")", .{});
         },
         .literal => |literal| {
             switch (literal) {

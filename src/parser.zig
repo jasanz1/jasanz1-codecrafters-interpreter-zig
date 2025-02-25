@@ -91,7 +91,6 @@ fn expression(input: *Input, context: *std.ArrayList(u8)) error{ UnterminatedBin
     var expresion_helper: ?*Expression = null;
     while (input.peek()) |_| {
         expresion_helper = expressionHelper(input, context, expresion_helper) catch return error.UnterminatedBinary;
-        std.debug.print("new_expression: {any}\n", .{expresion_helper});
     }
     return expresion_helper.?;
 }
@@ -113,6 +112,7 @@ fn expressionHelper(input: *Input, context: *std.ArrayList(u8), previous: ?*Expr
             },
             .RIGHT_PAREN => {
                 _ = context.pop();
+                return previous.?;
             },
             .LEFT_BRACE => @panic("TODO"),
             .RIGHT_BRACE => @panic("TODO"),
@@ -123,13 +123,11 @@ fn expressionHelper(input: *Input, context: *std.ArrayList(u8), previous: ?*Expr
                 new_expression.* = Expression{ .unary = .{ .operator = .MINUS, .right = expressionHelper(input, context, null) catch return error.UnterminatedUnary } };
             },
             .STAR => {
-                const right = expressionHelper(input, context, null) catch return error.UnterminatedBinary;
-                std.debug.print("star: {any}\n", .{right});
+                const right = expression(input, context) catch return error.UnterminatedBinary;
                 new_expression.* = Expression{ .binary = .{ .left = previous orelse return error.UnterminatedBinary, .operator = .STAR, .right = right } };
             },
             .SLASH => {
                 const right = expressionHelper(input, context, null) catch return error.UnterminatedBinary;
-                std.debug.print("star: {any}\n", .{right});
                 new_expression.* = Expression{ .binary = .{ .left = previous orelse return error.UnterminatedBinary, .operator = .SLASH, .right = right } };
             },
             .BANG => new_expression.* = Expression{ .unary = .{ .operator = .BANG, .right = expressionHelper(input, context, null) catch return error.UnterminatedUnary } },
@@ -165,6 +163,7 @@ fn expressionHelper(input: *Input, context: *std.ArrayList(u8), previous: ?*Expr
             },
         }
         if (c.token_type == .EOF) {
+            std.debug.print("returning: {any}\n", .{previous.?});
             return previous.?;
         }
     }

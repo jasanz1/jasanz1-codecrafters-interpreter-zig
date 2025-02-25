@@ -1,4 +1,5 @@
 const std = @import("std");
+const lexer = @import("lexer.zig");
 const Token = @import("lexer.zig").Token;
 const TokenType = @import("lexer.zig").TokenType;
 pub const Input = @import("generics.zig").makeInput(Token);
@@ -39,43 +40,43 @@ const Expression = union(enum) {
     grouping: *Expression,
 };
 
-pub fn printExpression(expressionTree: *const Expression) !void {
+pub fn printExpression(writer: anytype, expressionTree: *const Expression) !void {
     switch (expressionTree.*) {
         .binary => |*binary| {
-            try std.io.getStdOut().writer().print("({c} ", .{binary.operator.char()});
-            try printExpression(binary.left);
-            try std.io.getStdOut().writer().print(" ", .{});
-            try printExpression(binary.right);
-            try std.io.getStdOut().writer().print(")", .{});
+            try writer.print("({c} ", .{binary.operator.char()});
+            try printExpression(writer, binary.left);
+            try writer.print(" ", .{});
+            try printExpression(writer, binary.right);
+            try writer.print(")", .{});
         },
         .unary => |unary| {
-            try std.io.getStdOut().writer().print("({c} ", .{unary.operator.char()});
-            try printExpression(unary.right);
-            try std.io.getStdOut().writer().print(")", .{});
+            try writer.print("({c} ", .{unary.operator.char()});
+            try printExpression(writer, unary.right);
+            try writer.print(")", .{});
         },
         .literal => |literal| {
             switch (literal) {
                 .NUMBER => |number| {
                     //dont know of a clean way to set min precision
                     if (@ceil(number) == number) {
-                        try std.io.getStdOut().writer().print("{d}.0", .{number});
+                        try writer.print("{d}.0", .{number});
                         return;
                     } else {
-                        try std.io.getStdOut().writer().print("{d}", .{number});
+                        try writer.print("{d}", .{number});
                         return;
                     }
                 },
 
-                .STRING => |string| try std.io.getStdOut().writer().print("{s}", .{string}),
-                .NIL => try std.io.getStdOut().writer().print("nil", .{}),
-                .TRUE => try std.io.getStdOut().writer().print("true", .{}),
-                .FALSE => try std.io.getStdOut().writer().print("false", .{}),
+                .STRING => |string| try writer.print("{s}", .{string}),
+                .NIL => try writer.print("nil", .{}),
+                .TRUE => try writer.print("true", .{}),
+                .FALSE => try writer.print("false", .{}),
             }
         },
         .grouping => |grouping| {
-            try std.io.getStdOut().writer().print("(group ", .{});
-            try printExpression(grouping);
-            try std.io.getStdOut().writer().print(")", .{});
+            try writer.print("(group ", .{});
+            try printExpression(writer, grouping);
+            try writer.print(")", .{});
         },
     }
 }
@@ -87,10 +88,30 @@ pub fn parser(input: *Input) !Expression {
     return expression_tree.*;
 }
 
+test "parser" {
+    // array of array of strings
+    const test_input = [_][2][]const u8{ .{ "1 * 2", "(* 1.0 2.0)" }, .{ "39 * 73 / 71", "(/ (* 39.0 73.0) 71.0)" }, .{ "(23 * -76 / (61 * 86))", "(group (* 23.0 (/ (- 76.0) (group (* 61.0 86.0)))))" } };
+    for (test_input) |test_case| {
+        std.debug.print("test case: {s}\n", .{test_case[0]});
+        var inputTokens = lexer.Input{ .source = try std.fmt.allocPrint(std.heap.page_allocator, "{s}", .{test_case[0]}) };
+        const tokens = try lexer.Tokenizer(&inputTokens);
+        var input = Input{ .source = tokens };
+        const expression_tree = try parser(&input);
+        var buffer: [1024]u8 = undefined;
+        var stream = std.io.fixedBufferStream(&buffer);
+        const writer = stream.writer();
+        try printExpression(writer, &expression_tree);
+        try std.testing.expectEqualStrings(test_case[1], stream.buffer[0..stream.pos]);
+        std.debug.print("\n\n\n", .{});
+    }
+}
+
 fn expression(input: *Input, context: *std.ArrayList(u8)) error{ UnterminatedBinary, UnterminatedUnary, UnterminatedGroup }!*Expression {
     var expresion_helper: ?*Expression = null;
     while (input.peek()) |_| {
         expresion_helper = expressionHelper(input, context, expresion_helper) catch return error.UnterminatedBinary;
+        printExpression(std.io.getStdErr().writer(), expresion_helper.?) catch return error.UnterminatedBinary;
+        std.debug.print("\n", .{});
     }
     return expresion_helper.?;
 }
@@ -123,7 +144,7 @@ fn expressionHelper(input: *Input, context: *std.ArrayList(u8), previous: ?*Expr
                 new_expression.* = Expression{ .unary = .{ .operator = .MINUS, .right = expressionHelper(input, context, null) catch return error.UnterminatedUnary } };
             },
             .STAR => {
-                const right = expression(input, context) catch return error.UnterminatedBinary;
+                const right = expressionHelper(input, context, null) catch return error.UnterminatedBinary;
                 new_expression.* = Expression{ .binary = .{ .left = previous orelse return error.UnterminatedBinary, .operator = .STAR, .right = right } };
             },
             .SLASH => {
@@ -163,7 +184,6 @@ fn expressionHelper(input: *Input, context: *std.ArrayList(u8), previous: ?*Expr
             },
         }
         if (c.token_type == .EOF) {
-            std.debug.print("returning: {any}\n", .{previous.?});
             return previous.?;
         }
     }

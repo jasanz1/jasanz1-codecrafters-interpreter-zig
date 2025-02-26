@@ -222,6 +222,7 @@ fn rotateIfPrecedenceMismatch(previous: ?*Expression, new_expression: *Expressio
         new_expression.*.binary.left = temp;
         return previous.?;
     }
+
     return new_expression;
 }
 

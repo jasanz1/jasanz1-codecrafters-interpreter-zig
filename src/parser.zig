@@ -162,7 +162,7 @@ fn expressionHelper(input: *Input, context: *std.ArrayList(u8), previous: ?*Expr
             .STAR => {
                 const right = expressionHelper(input, context, null) catch return error.UnterminatedBinary;
                 new_expression.* = Expression{ .binary = .{ .left = previous orelse return error.UnterminatedBinary, .operator = .STAR, .right = right } };
-                if (previous.?.* == .binary and (previous.?.binary.operator == .MINUS or previous.?.binary.operator == .PLUS) and right.* != .grouping and previous.?.* != .grouping) {
+                if (previous.?.* == .binary and (previous.?.binary.operator == .MINUS or previous.?.binary.operator == .PLUS or previous.?.binary.operator == .SLASH) and right.* != .grouping and previous.?.* != .grouping) {
                     const temp = previous.?.binary.right;
                     previous.?.binary.right = new_expression;
                     new_expression.*.binary.left = temp;
@@ -172,7 +172,7 @@ fn expressionHelper(input: *Input, context: *std.ArrayList(u8), previous: ?*Expr
             .SLASH => {
                 const right = expressionHelper(input, context, null) catch return error.UnterminatedBinary;
                 new_expression.* = Expression{ .binary = .{ .left = previous orelse return error.UnterminatedBinary, .operator = .SLASH, .right = right } };
-                if (previous.?.* == .binary and (previous.?.binary.operator == .MINUS or previous.?.binary.operator == .PLUS or previous.?.binary.operator == .STAR) and right.* != .grouping and previous.?.* != .grouping) {
+                if (previous.?.* == .binary and (previous.?.binary.operator == .MINUS or previous.?.binary.operator == .PLUS) and right.* != .grouping and previous.?.* != .grouping) {
                     const temp = previous.?.binary.right;
                     previous.?.binary.right = new_expression;
                     new_expression.*.binary.left = temp;

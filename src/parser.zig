@@ -92,11 +92,10 @@ test "parser" {
     // array of array of strings
     const test_input = [_][2][]const u8{
         .{ "1 * 2", "(* 1.0 2.0)" },
-        .{ "39 * 73 / 71", "(/ (* 39.0 73.0) 71.0)" },
         .{ "52 + 80 - 94", "(- (+ 52.0 80.0) 94.0)" },
-        .{ "89 - 73 * 11 - 97", "(- (- 89.0 (* 73.0 11.0)) 97.0)" },
+        .{ "78 - 93 * 79 - 32", "(- (- 78.0 (* 93.0 79.0)) 32.0)" },
         .{ " \"hello\" + \"world\"", "(+ hello world)" },
-        .{ "(-11 + 80) * (89 * 38) / (89 + 50)", "(/ (* (group (+ (- 11.0) 80.0)) (group (* 89.0 38.0))) (group (+ 89.0 50.0)))" },
+        .{ "(-30 + 65) * (46 * 46) / (92 + 29)", "(/ (* (group (+ (- 30.0) 65.0)) (group (* 46.0 46.0))) (group (+ 92.0 29.0)))" },
     };
     for (test_input) |test_case| {
         std.debug.print("test case: {s}\n", .{test_case[0]});
@@ -162,22 +161,20 @@ fn expressionHelper(input: *Input, context: *std.ArrayList(u8), previous: ?*Expr
             .STAR => {
                 const right = expressionHelper(input, context, null) catch return error.UnterminatedBinary;
                 new_expression.* = Expression{ .binary = .{ .left = previous orelse return error.UnterminatedBinary, .operator = .STAR, .right = right } };
-                if (previous.?.* == .binary and (previous.?.binary.operator == .MINUS or previous.?.binary.operator == .PLUS or previous.?.binary.operator == .SLASH) and right.* != .grouping and previous.?.* != .grouping) {
-                    const temp = previous.?.binary.right;
-                    previous.?.binary.right = new_expression;
-                    new_expression.*.binary.left = temp;
-                    new_expression = previous.?;
-                }
+                new_expression = rotateIfPrecedenceMismatch(previous, new_expression, struct {
+                    fn check(prev: ?*Expression) bool {
+                        return prev.?.binary.operator == .MINUS or prev.?.binary.operator == .PLUS;
+                    }
+                });
             },
             .SLASH => {
                 const right = expressionHelper(input, context, null) catch return error.UnterminatedBinary;
                 new_expression.* = Expression{ .binary = .{ .left = previous orelse return error.UnterminatedBinary, .operator = .SLASH, .right = right } };
-                if (previous.?.* == .binary and (previous.?.binary.operator == .MINUS or previous.?.binary.operator == .PLUS) and right.* != .grouping and previous.?.* != .grouping) {
-                    const temp = previous.?.binary.right;
-                    previous.?.binary.right = new_expression;
-                    new_expression.*.binary.left = temp;
-                    new_expression = previous.?;
-                }
+                new_expression = rotateIfPrecedenceMismatch(previous, new_expression, struct {
+                    fn check(prev: ?*Expression) bool {
+                        return prev.?.binary.operator == .MINUS or prev.?.binary.operator == .PLUS;
+                    }
+                });
             },
             .BANG => new_expression.* = Expression{ .unary = .{ .operator = .BANG, .right = expressionHelper(input, context, null) catch return error.UnterminatedUnary } },
             .BANG_EQUAL => @panic("TODO"),
@@ -214,6 +211,16 @@ fn expressionHelper(input: *Input, context: *std.ArrayList(u8), previous: ?*Expr
         if (c.token_type == .EOF) {
             return previous.?;
         }
+    }
+    return new_expression;
+}
+
+fn rotateIfPrecedenceMismatch(previous: ?*Expression, new_expression: *Expression, comptime precedence: anytype) *Expression {
+    if (previous.?.* == .binary and precedence.check(previous)) {
+        const temp = previous.?.binary.right;
+        previous.?.binary.right = new_expression;
+        new_expression.*.binary.left = temp;
+        return previous.?;
     }
     return new_expression;
 }

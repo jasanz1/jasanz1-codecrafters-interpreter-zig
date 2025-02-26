@@ -90,10 +90,7 @@ pub fn parser(input: *Input) !Expression {
 
 test "parser" {
     // array of array of strings
-    const test_input = [_][2][]const u8{
-        .{ "1 * 2", "(* 1.0 2.0)" },
-        .{ "39 * 73 / 71", "(/ (* 39.0 73.0) 71.0)" },
-    };
+    const test_input = [_][2][]const u8{ .{ "1 * 2", "(* 1.0 2.0)" }, .{ "39 * 73 / 71", "(/ (* 39.0 73.0) 71.0)" }, .{ "52 + 80 - 94", "(- (+ 52.0 80.0) 94.0)" }, .{ "89 - 73 * 11 - 97", "(- (- 89.0 (* 73.0 11.0)) 97.0)" } };
     for (test_input) |test_case| {
         std.debug.print("test case: {s}\n", .{test_case[0]});
         var inputTokens = lexer.Input{ .source = try std.fmt.allocPrint(std.heap.page_allocator, "{s}", .{test_case[0]}) };
@@ -113,14 +110,14 @@ fn expression(input: *Input, context: *std.ArrayList(u8)) error{ UnterminatedBin
     var expresion_helper: ?*Expression = null;
     while (input.peek()) |_| {
         expresion_helper = expressionHelper(input, context, expresion_helper) catch return error.UnterminatedBinary;
-        printExpression(std.io.getStdErr().writer(), expresion_helper.?) catch return error.UnterminatedBinary;
+        printExpression(std.io.getStdOut().writer(), expresion_helper.?) catch return error.UnterminatedBinary;
         std.debug.print("\n", .{});
     }
     return expresion_helper.?;
 }
 
 fn expressionHelper(input: *Input, context: *std.ArrayList(u8), previous: ?*Expression) !*Expression {
-    const new_expression = std.heap.page_allocator.create(Expression) catch unreachable;
+    var new_expression = std.heap.page_allocator.create(Expression) catch unreachable;
     if (input.peek()) |c| {
         _ = input.next();
         switch (c.token_type) {
@@ -156,10 +153,22 @@ fn expressionHelper(input: *Input, context: *std.ArrayList(u8), previous: ?*Expr
             .STAR => {
                 const right = expressionHelper(input, context, null) catch return error.UnterminatedBinary;
                 new_expression.* = Expression{ .binary = .{ .left = previous orelse return error.UnterminatedBinary, .operator = .STAR, .right = right } };
+                if (previous.?.* == .binary and (previous.?.binary.operator == .MINUS or previous.?.binary.operator == .PLUS)) {
+                    const temp = previous.?.binary.right;
+                    previous.?.binary.right = new_expression;
+                    new_expression.*.binary.left = temp;
+                    new_expression = previous.?;
+                }
             },
             .SLASH => {
                 const right = expressionHelper(input, context, null) catch return error.UnterminatedBinary;
                 new_expression.* = Expression{ .binary = .{ .left = previous orelse return error.UnterminatedBinary, .operator = .SLASH, .right = right } };
+                if (previous.?.* == .binary and (previous.?.binary.operator == .MINUS or previous.?.binary.operator == .PLUS)) {
+                    const temp = previous.?.binary.right;
+                    previous.?.binary.right = new_expression;
+                    new_expression.*.binary.left = temp;
+                    new_expression = previous.?;
+                }
             },
             .BANG => new_expression.* = Expression{ .unary = .{ .operator = .BANG, .right = expressionHelper(input, context, null) catch return error.UnterminatedUnary } },
             .BANG_EQUAL => @panic("TODO"),

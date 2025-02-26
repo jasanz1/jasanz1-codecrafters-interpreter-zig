@@ -96,6 +96,7 @@ test "parser" {
         .{ "52 + 80 - 94", "(- (+ 52.0 80.0) 94.0)" },
         .{ "89 - 73 * 11 - 97", "(- (- 89.0 (* 73.0 11.0)) 97.0)" },
         .{ " \"hello\" + \"world\"", "(+ hello world)" },
+        .{ "(-11 + 80) * (89 * 38) / (89 + 50)", "(/ (* (group (+ (- 11.0) 80.0)) (group (* 89.0 38.0))) (group (+ 89.0 50.0)))" },
     };
     for (test_input) |test_case| {
         std.debug.print("test case: {s}\n", .{test_case[0]});
@@ -116,7 +117,11 @@ fn expression(input: *Input, context: *std.ArrayList(u8)) error{ UnterminatedBin
     var expresion_helper: ?*Expression = null;
     while (input.peek()) |_| {
         expresion_helper = expressionHelper(input, context, expresion_helper) catch return error.UnterminatedBinary;
-        std.debug.print("\n", .{});
+        if (@import("builtin").is_test) {
+            std.debug.print("expression: {s} ", .{@tagName(expresion_helper.?.*)});
+            printExpression(std.io.getStdOut().writer(), expresion_helper.?) catch @panic("error printing expression");
+            std.debug.print("\n", .{});
+        }
     }
     return expresion_helper.?;
 }
@@ -133,12 +138,11 @@ fn expressionHelper(input: *Input, context: *std.ArrayList(u8), previous: ?*Expr
             .STRING => new_expression.* = Expression{ .literal = .{ .STRING = c.literal.?.string } },
             .LEFT_PAREN => {
                 context.append('(') catch unreachable;
-                const group_expression = expression(input, context) catch return error.UnterminatedGroup;
-                new_expression.* = Expression{ .grouping = group_expression };
+                new_expression = expression(input, context) catch return error.UnterminatedGroup;
             },
             .RIGHT_PAREN => {
                 _ = context.pop();
-                return previous.?;
+                new_expression.* = Expression{ .grouping = previous.? };
             },
             .LEFT_BRACE => @panic("TODO"),
             .RIGHT_BRACE => @panic("TODO"),
@@ -158,7 +162,7 @@ fn expressionHelper(input: *Input, context: *std.ArrayList(u8), previous: ?*Expr
             .STAR => {
                 const right = expressionHelper(input, context, null) catch return error.UnterminatedBinary;
                 new_expression.* = Expression{ .binary = .{ .left = previous orelse return error.UnterminatedBinary, .operator = .STAR, .right = right } };
-                if (previous.?.* == .binary and (previous.?.binary.operator == .MINUS or previous.?.binary.operator == .PLUS)) {
+                if (previous.?.* == .binary and (previous.?.binary.operator == .MINUS or previous.?.binary.operator == .PLUS) and right.* != .grouping and previous.?.* != .grouping) {
                     const temp = previous.?.binary.right;
                     previous.?.binary.right = new_expression;
                     new_expression.*.binary.left = temp;
@@ -168,7 +172,7 @@ fn expressionHelper(input: *Input, context: *std.ArrayList(u8), previous: ?*Expr
             .SLASH => {
                 const right = expressionHelper(input, context, null) catch return error.UnterminatedBinary;
                 new_expression.* = Expression{ .binary = .{ .left = previous orelse return error.UnterminatedBinary, .operator = .SLASH, .right = right } };
-                if (previous.?.* == .binary and (previous.?.binary.operator == .MINUS or previous.?.binary.operator == .PLUS)) {
+                if (previous.?.* == .binary and (previous.?.binary.operator == .MINUS or previous.?.binary.operator == .PLUS or previous.?.binary.operator == .STAR) and right.* != .grouping and previous.?.* != .grouping) {
                     const temp = previous.?.binary.right;
                     previous.?.binary.right = new_expression;
                     new_expression.*.binary.left = temp;

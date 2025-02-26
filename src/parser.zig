@@ -90,7 +90,13 @@ pub fn parser(input: *Input) !Expression {
 
 test "parser" {
     // array of array of strings
-    const test_input = [_][2][]const u8{ .{ "1 * 2", "(* 1.0 2.0)" }, .{ "39 * 73 / 71", "(/ (* 39.0 73.0) 71.0)" }, .{ "52 + 80 - 94", "(- (+ 52.0 80.0) 94.0)" }, .{ "89 - 73 * 11 - 97", "(- (- 89.0 (* 73.0 11.0)) 97.0)" } };
+    const test_input = [_][2][]const u8{
+        .{ "1 * 2", "(* 1.0 2.0)" },
+        .{ "39 * 73 / 71", "(/ (* 39.0 73.0) 71.0)" },
+        .{ "52 + 80 - 94", "(- (+ 52.0 80.0) 94.0)" },
+        .{ "89 - 73 * 11 - 97", "(- (- 89.0 (* 73.0 11.0)) 97.0)" },
+        .{ " \"hello\" + \"world\"", "(+ hello world)" },
+    };
     for (test_input) |test_case| {
         std.debug.print("test case: {s}\n", .{test_case[0]});
         var inputTokens = lexer.Input{ .source = try std.fmt.allocPrint(std.heap.page_allocator, "{s}", .{test_case[0]}) };
@@ -110,7 +116,6 @@ fn expression(input: *Input, context: *std.ArrayList(u8)) error{ UnterminatedBin
     var expresion_helper: ?*Expression = null;
     while (input.peek()) |_| {
         expresion_helper = expressionHelper(input, context, expresion_helper) catch return error.UnterminatedBinary;
-        printExpression(std.io.getStdOut().writer(), expresion_helper.?) catch return error.UnterminatedBinary;
         std.debug.print("\n", .{});
     }
     return expresion_helper.?;

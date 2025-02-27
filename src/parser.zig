@@ -113,18 +113,43 @@ test "parser" {
 }
 
 fn expression(input: *Input, context: *std.ArrayList(u8)) error{ UnterminatedBinary, UnterminatedUnary, UnterminatedGroup }!*Expression {
-    var expresion_helper: ?*Expression = null;
+    var expression_helper: ?*Expression = null;
     while (input.peek()) |_| {
-        expresion_helper = expressionHelper(input, context, expresion_helper) catch return error.UnterminatedBinary;
+        expression_helper = expressionHelper(input, context, expression_helper) catch return error.UnterminatedBinary;
         if (@import("builtin").is_test) {
-            std.debug.print("expression: {s} ", .{@tagName(expresion_helper.?.*)});
-            printExpression(std.io.getStdOut().writer(), expresion_helper.?) catch @panic("error printing expression");
+            std.debug.print("expression: {s} ", .{@tagName(expression_helper.?.*)});
+            printExpression(std.io.getStdOut().writer(), expression_helper.?) catch @panic("error printing expression");
             std.debug.print("\n", .{});
         }
     }
-    return expresion_helper.?;
+    return expression_helper.?;
 }
 
+fn groupExpression(input: *Input, context: *std.ArrayList(u8)) error{ UnterminatedBinary, UnterminatedUnary, UnterminatedGroup }!*Expression {
+    var expression_helper: ?*Expression = null;
+    std.debug.print("groupExpression\n", .{});
+    while (input.peek()) |_| {
+        std.debug.print("current: {s}\n", .{@tagName(input.peek().?.token_type)});
+        if (input.peek()) |c| {
+            if (c.token_type == .RIGHT_PAREN) {
+                _ = input.next();
+                break;
+            }
+        }
+        expression_helper = expressionHelper(input, context, expression_helper) catch return error.UnterminatedBinary;
+        if (@import("builtin").is_test) {
+            std.debug.print("expression: {s} ", .{@tagName(expression_helper.?.*)});
+            printExpression(std.io.getStdOut().writer(), expression_helper.?) catch @panic("error printing expression");
+            std.debug.print("\n", .{});
+        }
+        std.debug.print("peek: {s}\n", .{@tagName(input.peek().?.token_type)});
+    }
+
+    const new_expression = std.heap.page_allocator.create(Expression) catch unreachable;
+    new_expression.* = Expression{ .grouping = expression_helper.? };
+
+    return new_expression;
+}
 fn expressionHelper(input: *Input, context: *std.ArrayList(u8), previous: ?*Expression) !*Expression {
     var new_expression = std.heap.page_allocator.create(Expression) catch unreachable;
     if (input.peek()) |c| {
@@ -136,13 +161,9 @@ fn expressionHelper(input: *Input, context: *std.ArrayList(u8), previous: ?*Expr
             .NUMBER => new_expression.* = Expression{ .literal = .{ .NUMBER = c.literal.?.number } },
             .STRING => new_expression.* = Expression{ .literal = .{ .STRING = c.literal.?.string } },
             .LEFT_PAREN => {
-                context.append('(') catch unreachable;
-                new_expression = expression(input, context) catch return error.UnterminatedGroup;
+                new_expression = groupExpression(input, context) catch return error.UnterminatedGroup;
             },
-            .RIGHT_PAREN => {
-                _ = context.pop();
-                new_expression.* = Expression{ .grouping = previous.? };
-            },
+            .RIGHT_PAREN => {},
             .LEFT_BRACE => @panic("TODO"),
             .RIGHT_BRACE => @panic("TODO"),
             .SEMICOLON => @panic("TODO"),
@@ -202,16 +223,13 @@ fn expressionHelper(input: *Input, context: *std.ArrayList(u8), previous: ?*Expr
             .INVALID_TOKEN => @panic("TODO"),
             .UNTERMINATED_STRING => @panic("TODO"),
             // i dont like this
-            .EOF => {
-                if (context.items.len > 0) {
-                    return error.earlyEOF;
-                }
-            },
+            .EOF => {},
         }
         if (c.token_type == .EOF) {
             return previous.?;
         }
     }
+
     return new_expression;
 }
 

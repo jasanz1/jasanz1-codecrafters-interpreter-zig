@@ -96,6 +96,7 @@ test "parser" {
         .{ "78 - 93 * 79 - 32", "(- (- 78.0 (* 93.0 79.0)) 32.0)" },
         .{ " \"hello\" + \"world\"", "(+ hello world)" },
         .{ "(-30 + 65) * (46 * 46) / (92 + 29)", "(/ (* (group (+ (- 30.0) 65.0)) (group (* 46.0 46.0))) (group (+ 92.0 29.0)))" },
+        .{ "83 < 99 < 115", "(< (< 83.0 99.0) 115.0)" },
     };
     for (test_input) |test_case| {
         std.debug.print("test case: {s}\n", .{test_case[0]});
@@ -150,61 +151,29 @@ fn groupExpression(input: *Input, context: *std.ArrayList(u8)) error{ Unterminat
 
     return new_expression;
 }
-fn expressionHelper(input: *Input, context: *std.ArrayList(u8), previous: ?*Expression) !*Expression {
+fn expressionHelper(input: *Input, context: *std.ArrayList(u8), previous: ?*Expression) error{ UnterminatedBinary, UnterminatedUnary, UnterminatedGroup }!*Expression {
     var new_expression = std.heap.page_allocator.create(Expression) catch unreachable;
     if (input.peek()) |c| {
         _ = input.next();
         switch (c.token_type) {
-            .TRUE => new_expression.* = Expression{ .literal = .{ .TRUE = {} } },
-            .FALSE => new_expression.* = Expression{ .literal = .{ .FALSE = {} } },
-            .NIL => new_expression.* = Expression{ .literal = .{ .NIL = {} } },
-            .NUMBER => new_expression.* = Expression{ .literal = .{ .NUMBER = c.literal.?.number } },
-            .STRING => new_expression.* = Expression{ .literal = .{ .STRING = c.literal.?.string } },
-            .LEFT_PAREN => {
-                new_expression = groupExpression(input, context) catch return error.UnterminatedGroup;
-            },
+            .TRUE, .FALSE, .NIL, .NUMBER, .STRING => new_expression = makeLiteral(c) catch return error.UnterminatedBinary,
+            .LEFT_PAREN => new_expression = groupExpression(input, context) catch return error.UnterminatedGroup,
             .RIGHT_PAREN => {},
             .LEFT_BRACE => @panic("TODO"),
             .RIGHT_BRACE => @panic("TODO"),
             .SEMICOLON => @panic("TODO"),
             .COMMA => @panic("TODO"),
-            .PLUS => {
-                const right = expressionHelper(input, context, null) catch return error.UnterminatedBinary;
-                new_expression.* = Expression{ .binary = .{ .left = previous orelse return error.UnterminatedBinary, .operator = .PLUS, .right = right } };
-            },
-            .MINUS => {
-                if (previous) |left| {
-                    new_expression.* = Expression{ .binary = .{ .left = left, .operator = .MINUS, .right = expressionHelper(input, context, null) catch return error.UnterminatedBinary } };
-                } else {
-                    new_expression.* = Expression{ .unary = .{ .operator = .MINUS, .right = expressionHelper(input, context, null) catch return error.UnterminatedUnary } };
-                }
-            },
-            .STAR => {
-                const right = expressionHelper(input, context, null) catch return error.UnterminatedBinary;
-                new_expression.* = Expression{ .binary = .{ .left = previous orelse return error.UnterminatedBinary, .operator = .STAR, .right = right } };
-                new_expression = rotateIfPrecedenceMismatch(previous, new_expression, struct {
-                    fn check(prev: ?*Expression) bool {
-                        return prev.?.binary.operator == .MINUS or prev.?.binary.operator == .PLUS;
-                    }
-                });
-            },
-            .SLASH => {
-                const right = expressionHelper(input, context, null) catch return error.UnterminatedBinary;
-                new_expression.* = Expression{ .binary = .{ .left = previous orelse return error.UnterminatedBinary, .operator = .SLASH, .right = right } };
-                new_expression = rotateIfPrecedenceMismatch(previous, new_expression, struct {
-                    fn check(prev: ?*Expression) bool {
-                        return prev.?.binary.operator == .MINUS or prev.?.binary.operator == .PLUS;
-                    }
-                });
-            },
-            .BANG => new_expression.* = Expression{ .unary = .{ .operator = .BANG, .right = expressionHelper(input, context, null) catch return error.UnterminatedUnary } },
+            .PLUS => new_expression = makeBinary(input, context, previous, .PLUS, plusOrMinusPercedence) catch return error.UnterminatedBinary,
+            .STAR => new_expression = makeBinary(input, context, previous, .STAR, multipleOrDividePercedence) catch return error.UnterminatedBinary,
+            .SLASH => new_expression = makeBinary(input, context, previous, .SLASH, multipleOrDividePercedence) catch return error.UnterminatedBinary,
+            .BANG => new_expression = makeUnary(input, context, previous, .BANG) catch return error.UnterminatedUnary,
             .BANG_EQUAL => @panic("TODO"),
             .EQUAL => @panic("TODO"),
             .EQUAL_EQUAL => @panic("TODO"),
-            .LESS => @panic("TODO"),
-            .GREATER => @panic("TODO"),
-            .LESS_EQUAL => @panic("TODO"),
-            .GREATER_EQUAL => @panic("TODO"),
+            .LESS => new_expression = makeBinary(input, context, previous, .LESS, comparePercedence) catch return error.UnterminatedBinary,
+            .GREATER => new_expression = makeBinary(input, context, previous, .GREATER, comparePercedence) catch return error.UnterminatedBinary,
+            .LESS_EQUAL => new_expression = makeBinary(input, context, previous, .LESS_EQUAL, comparePercedence) catch return error.UnterminatedBinary,
+            .GREATER_EQUAL => new_expression = makeBinary(input, context, previous, .GREATER_EQUAL, comparePercedence) catch return error.UnterminatedBinary,
             .IDENTIFIER => @panic("TODO"),
             .AND => @panic("TODO"),
             .CLASS => @panic("TODO"),
@@ -222,8 +191,15 @@ fn expressionHelper(input: *Input, context: *std.ArrayList(u8), previous: ?*Expr
             .DOT => @panic("TODO"),
             .INVALID_TOKEN => @panic("TODO"),
             .UNTERMINATED_STRING => @panic("TODO"),
-            // i dont like this
             .EOF => {},
+            .MINUS => {
+                if (previous) |_| {
+                    new_expression = makeBinary(input, context, previous, .MINUS, plusOrMinusPercedence) catch return error.UnterminatedBinary;
+                } else {
+                    new_expression = makeUnary(input, context, previous, .MINUS) catch return error.UnterminatedUnary;
+                }
+            },
+            // i dont like this
         }
         if (c.token_type == .EOF) {
             return previous.?;
@@ -233,8 +209,49 @@ fn expressionHelper(input: *Input, context: *std.ArrayList(u8), previous: ?*Expr
     return new_expression;
 }
 
+fn makeLiteral(token: Token) !*Expression {
+    const new_expression = std.heap.page_allocator.create(Expression) catch unreachable;
+    const tokenType = token.token_type;
+    switch (tokenType) {
+        .NUMBER => new_expression.* = Expression{ .literal = .{ .NUMBER = token.literal.?.number } },
+        .STRING => new_expression.* = Expression{ .literal = .{ .STRING = token.literal.?.string } },
+        .NIL => new_expression.* = Expression{ .literal = .{ .NIL = {} } },
+        .TRUE => new_expression.* = Expression{ .literal = .{ .TRUE = {} } },
+        .FALSE => new_expression.* = Expression{ .literal = .{ .FALSE = {} } },
+        else => unreachable,
+    }
+    return new_expression;
+}
+
+fn makeUnary(input: *Input, context: *std.ArrayList(u8), previous: ?*Expression, operator: Operator) !*Expression {
+    _ = previous;
+    const new_expression = std.heap.page_allocator.create(Expression) catch unreachable;
+    const right = expressionHelper(input, context, null) catch return error.UnterminatedUnary;
+    new_expression.* = Expression{ .unary = .{ .operator = operator, .right = right } };
+    return new_expression;
+}
+
+fn makeBinary(input: *Input, context: *std.ArrayList(u8), previous: ?*Expression, operator: Operator, comptime comparefunc: anytype) !*Expression {
+    var new_expression = std.heap.page_allocator.create(Expression) catch unreachable;
+    const right = expressionHelper(input, context, null) catch return error.UnterminatedBinary;
+    new_expression.* = Expression{ .binary = .{ .left = previous orelse return error.UnterminatedBinary, .operator = operator, .right = right } };
+    new_expression = rotateIfPrecedenceMismatch(previous, new_expression, comparefunc);
+    return new_expression;
+}
+fn plusOrMinusPercedence(_: ?*Expression) bool {
+    return false;
+}
+
+fn multipleOrDividePercedence(prev: ?*Expression) bool {
+    return prev.?.binary.operator == .MINUS or prev.?.binary.operator == .PLUS;
+}
+
+fn comparePercedence(prev: ?*Expression) bool {
+    return prev.?.binary.operator == .MINUS or prev.?.binary.operator == .PLUS or prev.?.binary.operator == .SLASH or prev.?.binary.operator == .STAR;
+}
+
 fn rotateIfPrecedenceMismatch(previous: ?*Expression, new_expression: *Expression, comptime precedence: anytype) *Expression {
-    if (previous.?.* == .binary and precedence.check(previous)) {
+    if (previous.?.* == .binary and @call(.auto, precedence, .{previous})) {
         const temp = previous.?.binary.right;
         previous.?.binary.right = new_expression;
         new_expression.*.binary.left = temp;

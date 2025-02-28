@@ -104,11 +104,9 @@ pub fn errorCheck(tokens: []Token) !void {
     for (tokens) |token| {
         switch (token.token_type) {
             TokenType.INVALID_TOKEN => {
-                try std.io.getStdErr().writer().print("[line {d}] Error: Unexpected character: {s}\n", .{ token.line_number, token.lexeme });
                 return error.UnexpectedCharacter;
             },
             TokenType.UNTERMINATED_STRING => {
-                try std.io.getStdErr().writer().print("[line {d}] Error: Unterminated string.\n", .{token.line_number});
                 return error.UnterminatedString;
             },
             else => {},

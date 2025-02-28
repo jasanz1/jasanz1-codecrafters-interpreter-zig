@@ -26,16 +26,15 @@ pub fn main() !u8 {
 
     // Uncomment this block to pass the first stage
     var tokenizerInput = lexer.Input{ .source = file_contents };
-    const tokens = try lexer.Tokenizer(&tokenizerInput);
+    const tokens = lexer.Tokenizer(&tokenizerInput) catch return 65;
     defer std.heap.page_allocator.free(tokens);
     if (std.mem.eql(u8, command, "tokenize")) {
         lexer.printTokens(tokens) catch return 65;
         return 0;
     }
-    lexer.errorCheck(tokens) catch return 65;
 
     var pasterInput = parser.Input{ .source = tokens };
-    const ast = try parser.parser(&pasterInput);
+    const ast = try parser.parser(&pasterInput) catch return 65;
     if (std.mem.eql(u8, command, "parse")) {
         parser.printExpression(std.io.getStdOut().writer(), &ast) catch return 65;
         return 0;

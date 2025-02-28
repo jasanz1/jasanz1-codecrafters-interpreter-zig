@@ -195,8 +195,9 @@ pub fn Tokenizer(source: *Input) ![]Token {
     }
     const token = Token{ .line_number = source.line_number, .token_type = TokenType.EOF, .lexeme = "", .literal = null };
     try tokens.append(token);
-
-    return tokens.toOwnedSlice();
+    const finalTokens = tokens.toOwnedSlice() catch @panic("error allocating memory for tokens");
+    try errorCheck(finalTokens);
+    return finalTokens;
 }
 
 fn readIdentifer(source: *Input, current: u8) !Token {

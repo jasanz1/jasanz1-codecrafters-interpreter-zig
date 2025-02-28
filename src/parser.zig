@@ -38,6 +38,8 @@ const Expression = union(enum) {
     unary: struct { operator: Operator, right: *Expression },
     literal: union(enum) { NUMBER: f64, STRING: []const u8, NIL, TRUE, FALSE },
     grouping: *Expression,
+    identifier: []const u8,
+    parseError: anyerror,
 };
 
 pub fn printExpression(writer: anytype, expressionTree: *const Expression) !void {
@@ -78,30 +80,62 @@ pub fn printExpression(writer: anytype, expressionTree: *const Expression) !void
             try printExpression(writer, grouping);
             try writer.print(")", .{});
         },
+        .identifier => |identifier| {
+            try writer.print("{s}", .{identifier});
+        },
+        .parseError => |_| {
+            std.debug.print("parseError: huh\n", .{});
+            return;
+        },
     }
 }
 
 pub fn parser(input: *Input) !Expression {
     var context = std.ArrayList(u8).init(std.heap.page_allocator);
     defer context.deinit();
-    const expression_tree = try expression(input, &context);
+    const expression_tree = expression(input, &context);
+    try errorCheck(expression_tree);
     return expression_tree.*;
 }
-
-test "parser" {
+fn errorCheck(expression_tree: *const Expression) !void {
+    switch (expression_tree.*) {
+        .binary => |*binary| {
+            try errorCheck(binary.left);
+            try errorCheck(binary.right);
+        },
+        .unary => |unary| {
+            try errorCheck(unary.right);
+        },
+        .grouping => |grouping| {
+            try errorCheck(grouping);
+        },
+        .parseError => |parseError| {
+            std.io.getStdErr().writer().print("parseError: {s}\n", .{@errorName(parseError)}) catch {};
+            return parseError;
+        },
+        else => {
+            return;
+        },
+    }
+}
+test "parserHappy" {
     // array of array of strings
-    const test_input = [_][2][]const u8{
-        .{ "1 * 2", "(* 1.0 2.0)" },
-        .{ "52 + 80 - 94", "(- (+ 52.0 80.0) 94.0)" },
-        .{ "78 - 93 * 79 - 32", "(- (- 78.0 (* 93.0 79.0)) 32.0)" },
-        .{ " \"hello\" + \"world\"", "(+ hello world)" },
-        .{ "(-30 + 65) * (46 * 46) / (92 + 29)", "(/ (* (group (+ (- 30.0) 65.0)) (group (* 46.0 46.0))) (group (+ 92.0 29.0)))" },
-        .{ "83 < 99 < 115", "(< (< 83.0 99.0) 115.0)" },
-        .{ "87 <= 179", "(<= 87.0 179.0)" },
+    const TestCases = struct {
+        input: []const u8,
+        expected_output: []const u8,
+    };
+    const test_input = [_]TestCases{
+        TestCases{ .input = "1 * 2", .expected_output = "(* 1.0 2.0)" },
+        TestCases{ .input = "52 + 80 - 94", .expected_output = "(- (+ 52.0 80.0) 94.0)" },
+        TestCases{ .input = "78 - 93 * 79 - 32", .expected_output = "(- (- 78.0 (* 93.0 79.0)) 32.0)" },
+        TestCases{ .input = " \"hello\" + \"world\"", .expected_output = "(+ hello world)" },
+        TestCases{ .input = "(-30 + 65) * (46 * 46) / (92 + 29)", .expected_output = "(/ (* (group (+ (- 30.0) 65.0)) (group (* 46.0 46.0))) (group (+ 92.0 29.0)))" },
+        TestCases{ .input = "83 < 99 < 115", .expected_output = "(< (< 83.0 99.0) 115.0)" },
+        TestCases{ .input = "87 <= 179", .expected_output = "(<= 87.0 179.0)" },
     };
     for (test_input) |test_case| {
-        std.debug.print("test case: {s}\n", .{test_case[0]});
-        var inputTokens = lexer.Input{ .source = try std.fmt.allocPrint(std.heap.page_allocator, "{s}", .{test_case[0]}) };
+        std.debug.print("test case: {s}\n", .{test_case.input});
+        var inputTokens = lexer.Input{ .source = try std.fmt.allocPrint(std.heap.page_allocator, "{s}", .{test_case.input}) };
         const tokens = try lexer.Tokenizer(&inputTokens);
         var input = Input{ .source = tokens };
         const expression_tree = try parser(&input);
@@ -109,15 +143,35 @@ test "parser" {
         var stream = std.io.fixedBufferStream(&buffer);
         const writer = stream.writer();
         try printExpression(writer, &expression_tree);
-        try std.testing.expectEqualStrings(test_case[1], stream.buffer[0..stream.pos]);
+        try std.testing.expectEqualStrings(test_case.expected_output, stream.buffer[0..stream.pos]);
         std.debug.print("\n\n\n", .{});
     }
 }
 
-fn expression(input: *Input, context: *std.ArrayList(u8)) error{ UnterminatedBinary, UnterminatedUnary, UnterminatedGroup }!*Expression {
+test "parserUnhappy" {
+    const TestCases = struct {
+        input: []const u8,
+        expected_error: anyerror,
+    };
+    const test_input = [_]TestCases{
+        TestCases{ .input = "(72 +)", .expected_error = error.UnterminatedBinary },
+    };
+
+    for (test_input) |test_case| {
+        std.debug.print("test case: {s}\n", .{test_case.input});
+        var inputTokens = lexer.Input{ .source = try std.fmt.allocPrint(std.heap.page_allocator, "{s}", .{test_case.input}) };
+        const tokens = try lexer.Tokenizer(&inputTokens);
+        var input = Input{ .source = tokens };
+        const expression_tree = parser(&input);
+        try std.testing.expectError(test_case.expected_error, expression_tree);
+        std.debug.print("\n\n\n", .{});
+    }
+}
+
+fn expression(input: *Input, context: *std.ArrayList(u8)) *Expression {
     var expression_helper: ?*Expression = null;
     while (input.peek()) |_| {
-        expression_helper = expressionHelper(input, context, expression_helper) catch return error.UnterminatedBinary;
+        expression_helper = expressionHelper(input, context, expression_helper);
         if (@import("builtin").is_test) {
             std.debug.print("expression: {s} ", .{@tagName(expression_helper.?.*)});
             printExpression(std.io.getStdOut().writer(), expression_helper.?) catch @panic("error printing expression");
@@ -127,7 +181,7 @@ fn expression(input: *Input, context: *std.ArrayList(u8)) error{ UnterminatedBin
     return expression_helper.?;
 }
 
-fn groupExpression(input: *Input, context: *std.ArrayList(u8)) error{ UnterminatedBinary, UnterminatedUnary, UnterminatedGroup }!*Expression {
+fn groupExpression(input: *Input, context: *std.ArrayList(u8)) *Expression {
     var expression_helper: ?*Expression = null;
     while (input.peek()) |_| {
         if (input.peek()) |c| {
@@ -136,9 +190,10 @@ fn groupExpression(input: *Input, context: *std.ArrayList(u8)) error{ Unterminat
                 break;
             }
         }
-        expression_helper = expressionHelper(input, context, expression_helper) catch return error.UnterminatedBinary;
+        expression_helper = expressionHelper(input, context, expression_helper) orelse catchError(error.UnterminatedBinary);
         if (@import("builtin").is_test) {
             printExpression(std.io.getStdOut().writer(), expression_helper.?) catch @panic("error printing expression");
+            std.debug.print("\n", .{});
         }
     }
 
@@ -147,30 +202,29 @@ fn groupExpression(input: *Input, context: *std.ArrayList(u8)) error{ Unterminat
 
     return new_expression;
 }
-fn expressionHelper(input: *Input, context: *std.ArrayList(u8), previous: ?*Expression) error{ UnterminatedBinary, UnterminatedUnary, UnterminatedGroup }!*Expression {
-    var new_expression = std.heap.page_allocator.create(Expression) catch unreachable;
+fn expressionHelper(input: *Input, context: *std.ArrayList(u8), previous: ?*Expression) ?*Expression {
     if (input.peek()) |c| {
         _ = input.next();
-        switch (c.token_type) {
-            .TRUE, .FALSE, .NIL, .NUMBER, .STRING => new_expression = makeLiteral(c) catch return error.UnterminatedBinary,
-            .LEFT_PAREN => new_expression = groupExpression(input, context) catch return error.UnterminatedGroup,
-            .RIGHT_PAREN => {},
+        const new_expression = switch (c.token_type) {
+            .TRUE, .FALSE, .NIL, .NUMBER, .STRING => makeLiteral(c),
+            .LEFT_PAREN => groupExpression(input, context),
+            .RIGHT_PAREN => null,
             .LEFT_BRACE => @panic("TODO"),
             .RIGHT_BRACE => @panic("TODO"),
             .SEMICOLON => @panic("TODO"),
             .COMMA => @panic("TODO"),
-            .PLUS => new_expression = makeBinary(input, context, previous, .PLUS, plusOrMinusPercedence) catch return error.UnterminatedBinary,
-            .STAR => new_expression = makeBinary(input, context, previous, .STAR, multipleOrDividePercedence) catch return error.UnterminatedBinary,
-            .SLASH => new_expression = makeBinary(input, context, previous, .SLASH, multipleOrDividePercedence) catch return error.UnterminatedBinary,
-            .BANG => new_expression = makeUnary(input, context, previous, .BANG) catch return error.UnterminatedUnary,
-            .BANG_EQUAL => new_expression = makeBinary(input, context, previous, .BANG_EQUAL, comparePercedence) catch return error.UnterminatedBinary,
+            .PLUS => makeBinary(input, context, previous, .PLUS, plusOrMinusPercedence),
+            .STAR => makeBinary(input, context, previous, .STAR, multipleOrDividePercedence),
+            .SLASH => makeBinary(input, context, previous, .SLASH, multipleOrDividePercedence),
+            .BANG => makeUnary(input, context, .BANG),
+            .BANG_EQUAL => makeBinary(input, context, previous, .BANG_EQUAL, comparePercedence),
             .EQUAL => @panic("TODO"),
-            .EQUAL_EQUAL => new_expression = makeBinary(input, context, previous, .EQUAL_EQUAL, comparePercedence) catch return error.UnterminatedBinary,
-            .LESS => new_expression = makeBinary(input, context, previous, .LESS, comparePercedence) catch return error.UnterminatedBinary,
-            .GREATER => new_expression = makeBinary(input, context, previous, .GREATER, comparePercedence) catch return error.UnterminatedBinary,
-            .LESS_EQUAL => new_expression = makeBinary(input, context, previous, .LESS_EQUAL, comparePercedence) catch return error.UnterminatedBinary,
-            .GREATER_EQUAL => new_expression = makeBinary(input, context, previous, .GREATER_EQUAL, comparePercedence) catch return error.UnterminatedBinary,
-            .IDENTIFIER => @panic("TODO"),
+            .EQUAL_EQUAL => makeBinary(input, context, previous, .EQUAL_EQUAL, comparePercedence),
+            .LESS => makeBinary(input, context, previous, .LESS, comparePercedence),
+            .GREATER => makeBinary(input, context, previous, .GREATER, comparePercedence),
+            .LESS_EQUAL => makeBinary(input, context, previous, .LESS_EQUAL, comparePercedence),
+            .GREATER_EQUAL => makeBinary(input, context, previous, .GREATER_EQUAL, comparePercedence),
+            .IDENTIFIER => makeIdentifier(c),
             .AND => @panic("TODO"),
             .CLASS => @panic("TODO"),
             .ELSE => @panic("TODO"),
@@ -187,53 +241,60 @@ fn expressionHelper(input: *Input, context: *std.ArrayList(u8), previous: ?*Expr
             .DOT => @panic("TODO"),
             .INVALID_TOKEN => @panic("TODO"),
             .UNTERMINATED_STRING => @panic("TODO"),
-            .EOF => {},
-            .MINUS => {
-                if (previous) |_| {
-                    new_expression = makeBinary(input, context, previous, .MINUS, plusOrMinusPercedence) catch return error.UnterminatedBinary;
-                } else {
-                    new_expression = makeUnary(input, context, previous, .MINUS) catch return error.UnterminatedUnary;
-                }
-            },
+            .EOF => null,
+            .MINUS => makeMinus(input, context, previous),
             // i dont like this
-        }
+        };
         if (c.token_type == .EOF) {
             return previous.?;
         }
+        return new_expression;
     }
 
-    return new_expression;
+    return null;
+}
+fn makeMinus(input: *Input, context: *std.ArrayList(u8), previous: ?*Expression) *Expression {
+    if (previous) |_| {
+        return makeBinary(input, context, previous, .MINUS, plusOrMinusPercedence);
+    } else {
+        return makeUnary(input, context, .MINUS);
+    }
 }
 
-fn makeLiteral(token: Token) !*Expression {
-    const new_expression = std.heap.page_allocator.create(Expression) catch unreachable;
+fn makeIdentifier(token: Token) *Expression {
+    const identifier = token.lexeme;
+    return makeNewExpressionPointer(Expression{ .identifier = identifier }).?;
+}
+
+fn makeLiteral(token: Token) ?*Expression {
     const tokenType = token.token_type;
-    switch (tokenType) {
-        .NUMBER => new_expression.* = Expression{ .literal = .{ .NUMBER = token.literal.?.number } },
-        .STRING => new_expression.* = Expression{ .literal = .{ .STRING = token.literal.?.string } },
-        .NIL => new_expression.* = Expression{ .literal = .{ .NIL = {} } },
-        .TRUE => new_expression.* = Expression{ .literal = .{ .TRUE = {} } },
-        .FALSE => new_expression.* = Expression{ .literal = .{ .FALSE = {} } },
-        else => unreachable,
-    }
-    return new_expression;
+    const new_expression = switch (tokenType) {
+        .NUMBER => Expression{ .literal = .{ .NUMBER = token.literal.?.number } },
+        .STRING => Expression{ .literal = .{ .STRING = token.literal.?.string } },
+        .NIL => Expression{ .literal = .{ .NIL = {} } },
+        .TRUE => Expression{ .literal = .{ .TRUE = {} } },
+        .FALSE => Expression{ .literal = .{ .FALSE = {} } },
+        else => null,
+    };
+    return makeNewExpressionPointer(new_expression);
 }
 
-fn makeUnary(input: *Input, context: *std.ArrayList(u8), previous: ?*Expression, operator: Operator) !*Expression {
-    _ = previous;
-    const new_expression = std.heap.page_allocator.create(Expression) catch unreachable;
-    const right = expressionHelper(input, context, null) catch return error.UnterminatedUnary;
-    new_expression.* = Expression{ .unary = .{ .operator = operator, .right = right } };
-    return new_expression;
+fn makeUnary(input: *Input, context: *std.ArrayList(u8), operator: Operator) *Expression {
+    const right = expressionHelper(input, context, null) orelse catchError(error.UnterminatedUnary);
+    return makeNewExpressionPointer(Expression{ .unary = .{ .operator = operator, .right = right } }).?;
 }
 
-fn makeBinary(input: *Input, context: *std.ArrayList(u8), previous: ?*Expression, operator: Operator, comptime comparefunc: anytype) !*Expression {
-    var new_expression = std.heap.page_allocator.create(Expression) catch unreachable;
-    const right = expressionHelper(input, context, null) catch return error.UnterminatedBinary;
-    new_expression.* = Expression{ .binary = .{ .left = previous orelse return error.UnterminatedBinary, .operator = operator, .right = right } };
-    new_expression = rotateIfPrecedenceMismatch(previous, new_expression, comparefunc);
-    return new_expression;
+fn makeBinary(input: *Input, context: *std.ArrayList(u8), previous: ?*Expression, operator: Operator, comptime comparefunc: anytype) *Expression {
+    const right = expressionHelper(input, context, null) orelse catchError(error.UnterminatedBinary);
+    var new_expression = makeNewExpressionPointer(Expression{ .binary = .{ .left = previous orelse catchError(error.UnterminatedBinary), .operator = operator, .right = right } });
+    new_expression = rotateIfPrecedenceMismatch(previous, new_expression.?, comparefunc);
+    return new_expression.?;
 }
+
+fn catchError(parserErr: anyerror) *Expression {
+    return makeNewExpressionPointer(Expression{ .parseError = parserErr }).?;
+}
+
 fn plusOrMinusPercedence(_: ?*Expression) bool {
     return false;
 }
@@ -272,4 +333,14 @@ fn tokenTypeIsOperator(token_type: TokenType) ?Operator {
         .GREATER_EQUAL => Operator.GREATER_EQUAL,
         else => null,
     };
+}
+
+fn makeNewExpressionPointer(new_expression: ?Expression) ?*Expression {
+    if (new_expression) |_| {
+        const new_expression_pointer = std.heap.page_allocator.create(Expression) catch unreachable;
+        new_expression_pointer.* = new_expression.?;
+        return new_expression_pointer;
+    } else {
+        return null;
+    }
 }

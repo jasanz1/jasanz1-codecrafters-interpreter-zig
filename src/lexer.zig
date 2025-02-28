@@ -105,9 +105,9 @@ pub fn printTokens(tokens: []Token) !void {
     return errors orelse return;
 }
 
-pub fn errorCheck(token: []Token) !void {
-    for (token) |t| {
-        switch (t.token_type) {
+pub fn errorCheck(tokens: []Token) !void {
+    for (tokens) |token| {
+        switch (token.token_type) {
             TokenType.INVALID_TOKEN => {
                 try std.io.getStdErr().writer().print("[line {d}] Error: Unexpected character: {s}\n", .{ token.line_number, token.lexeme });
                 return error.UnexpectedCharacter;

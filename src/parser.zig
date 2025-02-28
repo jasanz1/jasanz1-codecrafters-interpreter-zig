@@ -99,7 +99,8 @@ pub fn parser(input: *Input, ignore_errors: bool) !Expression {
     }
     return expression_tree.*;
 }
-fn errorCheck(expression_tree: *const Expression) !void {
+
+pub fn errorCheck(expression_tree: *const Expression) !void {
     switch (expression_tree.*) {
         .binary => |*binary| {
             try errorCheck(binary.left);
@@ -120,6 +121,7 @@ fn errorCheck(expression_tree: *const Expression) !void {
         },
     }
 }
+
 test "parserHappy" {
     // array of array of strings
     const TestCases = struct {

@@ -29,14 +29,16 @@ pub fn main() !u8 {
     const tokens = lexer.lexer(&tokenizerInput, std.mem.eql(u8, command, "tokenize")) catch return 65;
     defer std.heap.page_allocator.free(tokens);
     if (std.mem.eql(u8, command, "tokenize")) {
-        lexer.printTokens(tokens) catch return 65;
+        try lexer.printTokens(tokens);
+        lexer.errorCheck(tokens) catch return 65;
         return 0;
     }
 
     var pasterInput = parser.Input{ .source = tokens };
     const ast = parser.parser(&pasterInput, std.mem.eql(u8, command, "parse")) catch return 65;
     if (std.mem.eql(u8, command, "parse")) {
-        parser.printExpression(std.io.getStdOut().writer(), &ast) catch return 65;
+        try parser.printExpression(std.io.getStdOut().writer(), &ast);
+        parser.errorCheck(&ast) catch return 65;
         return 0;
     }
     if (std.mem.eql(u8, command, "parse")) {

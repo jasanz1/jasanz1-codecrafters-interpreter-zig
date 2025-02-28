@@ -16,7 +16,7 @@ const Operator = enum {
     GREATER,
     LESS_EQUAL,
     GREATER_EQUAL,
-    pub fn char(self: Operator) []const u8 {
+    pub fn stringify(self: Operator) []const u8 {
         return switch (self) {
             .PLUS => "+",
             .MINUS => "-",
@@ -43,14 +43,14 @@ const Expression = union(enum) {
 pub fn printExpression(writer: anytype, expressionTree: *const Expression) !void {
     switch (expressionTree.*) {
         .binary => |*binary| {
-            try writer.print("({s} ", .{binary.operator.char()});
+            try writer.print("({s} ", .{binary.operator.stringify()});
             try printExpression(writer, binary.left);
             try writer.print(" ", .{});
             try printExpression(writer, binary.right);
             try writer.print(")", .{});
         },
         .unary => |unary| {
-            try writer.print("({s} ", .{unary.operator.char()});
+            try writer.print("({s} ", .{unary.operator.stringify()});
             try printExpression(writer, unary.right);
             try writer.print(")", .{});
         },

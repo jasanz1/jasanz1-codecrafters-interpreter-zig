@@ -241,8 +241,8 @@ fn expressionHelper(input: *Input, context: *std.ArrayList(u8), previous: ?*Expr
             .DOT => @panic("TODO"),
             .INVALID_TOKEN => @panic("TODO"),
             .UNTERMINATED_STRING => @panic("TODO"),
-            .EOF => null,
-            .MINUS => makeMinus(input, context, previous),
+            .EOF => handleEOF(context),
+            .MINUS => handleMinus(input, context, previous),
             // i dont like this
         };
         if (c.token_type == .EOF) {
@@ -253,7 +253,15 @@ fn expressionHelper(input: *Input, context: *std.ArrayList(u8), previous: ?*Expr
 
     return null;
 }
-fn makeMinus(input: *Input, context: *std.ArrayList(u8), previous: ?*Expression) *Expression {
+
+fn handleEOF(context: *std.ArrayList(u8)) ?*Expression {
+    if (context.items.len == 0) {
+        return null;
+    }
+    return makeNewExpressionPointer(Expression{ .parseError = error.Unterminatedgroup });
+}
+
+fn handleMinus(input: *Input, context: *std.ArrayList(u8), previous: ?*Expression) *Expression {
     if (previous) |_| {
         return makeBinary(input, context, previous, .MINUS, plusOrMinusPercedence);
     } else {

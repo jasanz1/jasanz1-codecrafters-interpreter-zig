@@ -16,19 +16,19 @@ const Operator = enum {
     GREATER,
     LESS_EQUAL,
     GREATER_EQUAL,
-    pub fn char(self: Operator) u8 {
+    pub fn char(self: Operator) []const u8 {
         return switch (self) {
-            .PLUS => '+',
-            .MINUS => '-',
-            .STAR => '*',
-            .SLASH => '/',
-            .BANG => '!',
-            .BANG_EQUAL => '!',
-            .EQUAL_EQUAL => '=',
-            .LESS => '<',
-            .GREATER => '>',
-            .LESS_EQUAL => '<',
-            .GREATER_EQUAL => '>',
+            .PLUS => "+",
+            .MINUS => "-",
+            .STAR => "*",
+            .SLASH => "/",
+            .BANG => "!",
+            .BANG_EQUAL => "!",
+            .EQUAL_EQUAL => "=",
+            .LESS => "<",
+            .GREATER => ">",
+            .LESS_EQUAL => "<=",
+            .GREATER_EQUAL => ">=",
         };
     }
 };
@@ -43,14 +43,14 @@ const Expression = union(enum) {
 pub fn printExpression(writer: anytype, expressionTree: *const Expression) !void {
     switch (expressionTree.*) {
         .binary => |*binary| {
-            try writer.print("({c} ", .{binary.operator.char()});
+            try writer.print("({s} ", .{binary.operator.char()});
             try printExpression(writer, binary.left);
             try writer.print(" ", .{});
             try printExpression(writer, binary.right);
             try writer.print(")", .{});
         },
         .unary => |unary| {
-            try writer.print("({c} ", .{unary.operator.char()});
+            try writer.print("({s} ", .{unary.operator.char()});
             try printExpression(writer, unary.right);
             try writer.print(")", .{});
         },
@@ -97,6 +97,7 @@ test "parser" {
         .{ " \"hello\" + \"world\"", "(+ hello world)" },
         .{ "(-30 + 65) * (46 * 46) / (92 + 29)", "(/ (* (group (+ (- 30.0) 65.0)) (group (* 46.0 46.0))) (group (+ 92.0 29.0)))" },
         .{ "83 < 99 < 115", "(< (< 83.0 99.0) 115.0)" },
+        .{ "87 <= 179", "(<= 87.0 179.0)" },
     };
     for (test_input) |test_case| {
         std.debug.print("test case: {s}\n", .{test_case[0]});
@@ -128,9 +129,7 @@ fn expression(input: *Input, context: *std.ArrayList(u8)) error{ UnterminatedBin
 
 fn groupExpression(input: *Input, context: *std.ArrayList(u8)) error{ UnterminatedBinary, UnterminatedUnary, UnterminatedGroup }!*Expression {
     var expression_helper: ?*Expression = null;
-    std.debug.print("groupExpression\n", .{});
     while (input.peek()) |_| {
-        std.debug.print("current: {s}\n", .{@tagName(input.peek().?.token_type)});
         if (input.peek()) |c| {
             if (c.token_type == .RIGHT_PAREN) {
                 _ = input.next();
@@ -139,11 +138,8 @@ fn groupExpression(input: *Input, context: *std.ArrayList(u8)) error{ Unterminat
         }
         expression_helper = expressionHelper(input, context, expression_helper) catch return error.UnterminatedBinary;
         if (@import("builtin").is_test) {
-            std.debug.print("expression: {s} ", .{@tagName(expression_helper.?.*)});
             printExpression(std.io.getStdOut().writer(), expression_helper.?) catch @panic("error printing expression");
-            std.debug.print("\n", .{});
         }
-        std.debug.print("peek: {s}\n", .{@tagName(input.peek().?.token_type)});
     }
 
     const new_expression = std.heap.page_allocator.create(Expression) catch unreachable;

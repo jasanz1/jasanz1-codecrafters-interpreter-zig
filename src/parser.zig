@@ -90,11 +90,13 @@ pub fn printExpression(writer: anytype, expressionTree: *const Expression) !void
     }
 }
 
-pub fn parser(input: *Input) !Expression {
+pub fn parser(input: *Input, ignore_errors: bool) !Expression {
     var context = std.ArrayList(u8).init(std.heap.page_allocator);
     defer context.deinit();
     const expression_tree = expression(input, &context);
-    try errorCheck(expression_tree);
+    if (!ignore_errors) {
+        try errorCheck(expression_tree);
+    }
     return expression_tree.*;
 }
 fn errorCheck(expression_tree: *const Expression) !void {

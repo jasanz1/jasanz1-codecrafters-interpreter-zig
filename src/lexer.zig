@@ -79,11 +79,11 @@ pub fn printToken(token: Token) !void {
         switch (token.token_type) {
             TokenType.INVALID_TOKEN => {
                 try std.io.getStdErr().writer().print("[line {d}] Error: Unexpected character: {s}\n", .{ token.line_number, token.lexeme });
-                return error.UnexpectedCharacter;
+                return;
             },
             TokenType.UNTERMINATED_STRING => {
                 try std.io.getStdErr().writer().print("[line {d}] Error: Unterminated string.\n", .{token.line_number});
-                return error.UnterminatedString;
+                return;
             },
             else => {
                 try std.io.getStdOut().writer().print("{s} {s} null\n", .{ token_type, token.lexeme });
@@ -94,15 +94,10 @@ pub fn printToken(token: Token) !void {
 }
 
 pub fn printTokens(tokens: []Token) !void {
-    var errors: ?anyerror = null;
     for (tokens) |token| {
-        printToken(token) catch |err| {
-            if (errors == null) {
-                errors = err;
-            }
-        };
+        try printToken(token);
     }
-    return errors orelse return;
+    return;
 }
 
 pub fn errorCheck(tokens: []Token) !void {
@@ -132,12 +127,21 @@ test "parserHappy" {
     for (test_input) |test_case| {
         std.debug.print("test case: {s}\n", .{test_case.input});
         var inputTokens = Input{ .source = try std.fmt.allocPrint(std.heap.page_allocator, "{s}", .{test_case.input}) };
-        const tokens = Tokenizer(&inputTokens);
+        const tokens = lexer(&inputTokens, true);
         try std.testing.expectError(test_case.expected_error, tokens);
         std.debug.print("\n\n\n", .{});
     }
 }
-pub fn Tokenizer(source: *Input) ![]Token {
+
+pub fn lexer(source: *Input, ignore_errors: bool) ![]Token {
+    const tokens = try Tokenizer(source);
+    if (!ignore_errors) {
+        try errorCheck(tokens);
+    }
+    return tokens;
+}
+
+fn Tokenizer(source: *Input) ![]Token {
     var tokens = std.ArrayList(Token).init(std.heap.page_allocator);
     var keyword_map = std.StringHashMap(TokenType).init(std.heap.page_allocator);
     try keyword_map.put("and", TokenType.AND);
@@ -214,7 +218,6 @@ pub fn Tokenizer(source: *Input) ![]Token {
     const token = Token{ .line_number = source.line_number, .token_type = TokenType.EOF, .lexeme = "", .literal = null };
     try tokens.append(token);
     const finalTokens = tokens.toOwnedSlice() catch @panic("error allocating memory for tokens");
-    try errorCheck(finalTokens);
     return finalTokens;
 }
 

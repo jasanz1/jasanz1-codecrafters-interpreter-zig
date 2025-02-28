@@ -156,6 +156,7 @@ test "parserUnhappy" {
     const test_input = [_]TestCases{
         TestCases{ .input = "(72 +)", .expected_error = error.UnterminatedBinary },
         TestCases{ .input = "(foo ", .expected_error = error.Unterminatedgroup },
+        TestCases{ .input = "+", .expected_error = error.UnterminatedBinary },
     };
 
     for (test_input) |test_case| {
@@ -174,7 +175,6 @@ fn expression(input: *Input, context: *std.ArrayList(u8)) *Expression {
     while (input.peek()) |_| {
         expression_helper = expressionHelper(input, context, expression_helper);
         if (@import("builtin").is_test) {
-            std.debug.print("expression: {s} ", .{@tagName(expression_helper.?.*)});
             printExpression(std.io.getStdOut().writer(), expression_helper.?) catch @panic("error printing expression");
             std.debug.print("\n", .{});
         }
@@ -186,13 +186,11 @@ fn groupExpression(input: *Input, context: *std.ArrayList(u8)) *Expression {
     var expression_helper: ?*Expression = null;
     context.append('(') catch unreachable;
     while (input.peek()) |c| {
-        std.debug.print("current char: {any}\n", .{c});
         if (c.token_type == .RIGHT_PAREN) {
             _ = input.next();
             break;
         }
         expression_helper = expressionHelper(input, context, expression_helper);
-        std.debug.print("expression_helper: {any}\n", .{expression_helper});
         if (@import("builtin").is_test) {
             printExpression(std.io.getStdOut().writer(), expression_helper.?) catch @panic("error printing expression");
             std.debug.print("\n", .{});
@@ -200,7 +198,6 @@ fn groupExpression(input: *Input, context: *std.ArrayList(u8)) *Expression {
     }
 
     if (context.pop() != '(' or expression_helper.?.* == .parseError) {
-        std.debug.print("error {s}", .{@errorName(expression_helper.?.*.parseError)});
         if (expression_helper.?.*.parseError == error.unexpectedEOF) {
             return makeNewExpressionPointer(Expression{ .parseError = error.Unterminatedgroup }).?;
         }
@@ -210,11 +207,10 @@ fn groupExpression(input: *Input, context: *std.ArrayList(u8)) *Expression {
 fn expressionHelper(input: *Input, context: *std.ArrayList(u8), previous: ?*Expression) ?*Expression {
     if (input.peek()) |c| {
         _ = input.next();
-        std.debug.print("token: {any}\n", .{c});
         const new_expression = switch (c.token_type) {
             .TRUE, .FALSE, .NIL, .NUMBER, .STRING => makeLiteral(c),
             .LEFT_PAREN => groupExpression(input, context),
-            .RIGHT_PAREN => catchError(error.UnterminatedGroup),
+            .RIGHT_PAREN => makeNewExpressionPointer(Expression{ .parseError = error.UnterminatedGroup }).?,
             .LEFT_BRACE => @panic("TODO"),
             .RIGHT_BRACE => @panic("TODO"),
             .SEMICOLON => @panic("TODO"),
@@ -257,12 +253,13 @@ fn expressionHelper(input: *Input, context: *std.ArrayList(u8), previous: ?*Expr
     return null;
 }
 
-fn handleEOF(context: *std.ArrayList(u8), prev: ?*Expression) *Expression {
+fn handleEOF(context: *std.ArrayList(u8), previous: ?*Expression) *Expression {
     if (context.items.len == 0) {
-        return prev.?;
+        return previous orelse return makeNewExpressionPointer(Expression{ .parseError = error.unexpectedEOF }).?;
     }
-    errorCheck(prev.?) catch return prev.?;
-
+    if (previous) |prev| {
+        errorCheck(prev) catch return prev;
+    }
     return makeNewExpressionPointer(Expression{ .parseError = error.unexpectedEOF }).?;
 }
 
@@ -293,22 +290,22 @@ fn makeLiteral(token: Token) ?*Expression {
 }
 
 fn makeUnary(input: *Input, context: *std.ArrayList(u8), operator: Operator) *Expression {
-    const right = expressionHelper(input, context, null) orelse catchError(error.UnterminatedUnary);
+    const right = expressionHelper(input, context, null) orelse makeNewExpressionPointer(Expression{ .parseError = error.UnterminatedUnary }).?;
     return makeNewExpressionPointer(Expression{ .unary = .{ .operator = operator, .right = right } }).?;
 }
 
 fn makeBinary(input: *Input, context: *std.ArrayList(u8), previous: ?*Expression, operator: Operator, comptime comparefunc: anytype) *Expression {
-    var right = expressionHelper(input, context, null) orelse catchError(error.UnterminatedBinary);
+    var right = expressionHelper(input, context, null) orelse makeNewExpressionPointer(Expression{ .parseError = error.UnterminatedBinary }).?;
     if (right.* == .parseError) {
-        right = catchError(error.UnterminatedBinary);
+        right = makeNewExpressionPointer(Expression{ .parseError = error.UnterminatedBinary }).?;
     }
-    var new_expression = makeNewExpressionPointer(Expression{ .binary = .{ .left = previous orelse catchError(error.UnterminatedBinary), .operator = operator, .right = right } });
-    new_expression = rotateIfPrecedenceMismatch(previous, new_expression.?, comparefunc);
-    return new_expression.?;
-}
-
-fn catchError(parserErr: anyerror) *Expression {
-    return makeNewExpressionPointer(Expression{ .parseError = parserErr }).?;
+    var new_expression = makeNewExpressionPointer(Expression{ .binary = .{
+        .left = previous orelse makeNewExpressionPointer(Expression{ .parseError = error.UnterminatedBinary }).?,
+        .operator = operator,
+        .right = right,
+    } }).?;
+    new_expression = rotateIfPrecedenceMismatch(previous, new_expression, comparefunc);
+    return new_expression;
 }
 
 fn plusOrMinusPercedence(_: ?*Expression) bool {
@@ -324,11 +321,15 @@ fn comparePercedence(prev: ?*Expression) bool {
 }
 
 fn rotateIfPrecedenceMismatch(previous: ?*Expression, new_expression: *Expression, comptime precedence: anytype) *Expression {
-    if (previous.?.* == .binary and @call(.auto, precedence, .{previous})) {
-        const temp = previous.?.binary.right;
-        previous.?.binary.right = new_expression;
-        new_expression.*.binary.left = temp;
-        return previous.?;
+    if (previous) |prev| {
+        if (prev.* == .binary and @call(.auto, precedence, .{prev})) {
+            const temp = prev.binary.right;
+            prev.binary.right = new_expression;
+            new_expression.*.binary.left = temp;
+            return prev;
+        }
+    } else {
+        return makeNewExpressionPointer(Expression{ .parseError = error.UnterminatedBinary }).?;
     }
 
     return new_expression;

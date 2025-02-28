@@ -109,16 +109,34 @@ pub fn errorCheck(token: []Token) !void {
     for (token) |t| {
         switch (t.token_type) {
             TokenType.INVALID_TOKEN => {
+                try std.io.getStdErr().writer().print("[line {d}] Error: Unexpected character: {s}\n", .{ token.line_number, token.lexeme });
                 return error.UnexpectedCharacter;
             },
             TokenType.UNTERMINATED_STRING => {
+                try std.io.getStdErr().writer().print("[line {d}] Error: Unterminated string.\n", .{token.line_number});
                 return error.UnterminatedString;
             },
             else => {},
         }
     }
 }
+test "parserHappy" {
+    const TestCases = struct {
+        input: []const u8,
+        expected_error: anyerror,
+    };
+    const test_input = [_]TestCases{
+        TestCases{ .input = "\"foo\" \"unterminated", .expected_error = error.UnterminatedString },
+    };
 
+    for (test_input) |test_case| {
+        std.debug.print("test case: {s}\n", .{test_case.input});
+        var inputTokens = Input{ .source = try std.fmt.allocPrint(std.heap.page_allocator, "{s}", .{test_case.input}) };
+        const tokens = Tokenizer(&inputTokens);
+        try std.testing.expectError(test_case.expected_error, tokens);
+        std.debug.print("\n\n\n", .{});
+    }
+}
 pub fn Tokenizer(source: *Input) ![]Token {
     var tokens = std.ArrayList(Token).init(std.heap.page_allocator);
     var keyword_map = std.StringHashMap(TokenType).init(std.heap.page_allocator);

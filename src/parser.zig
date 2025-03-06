@@ -4,7 +4,7 @@ const Token = @import("lexer.zig").Token;
 const TokenType = @import("lexer.zig").TokenType;
 pub const Input = @import("generics.zig").makeInput(Token);
 
-const Operator = enum {
+pub const Operator = enum {
     PLUS,
     MINUS,
     STAR,
@@ -33,7 +33,7 @@ const Operator = enum {
     }
 };
 
-const Expression = union(enum) {
+pub const Expression = union(enum) {
     binary: struct { left: *Expression, operator: Operator, right: *Expression },
     unary: struct { operator: Operator, right: *Expression },
     literal: union(enum) { NUMBER: f64, STRING: []const u8, NIL, TRUE, FALSE },

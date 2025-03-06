@@ -1,6 +1,8 @@
 const std = @import("std");
 const lexer = @import("lexer.zig");
 const parser = @import("parser.zig");
+const eval = @import("eval.zig");
+
 pub fn main() !u8 {
     // You can use print statements as follows for debugging, they'll be visible when running tests.
     std.debug.print("Logs from your program will appear here!\n", .{});
@@ -16,7 +18,7 @@ pub fn main() !u8 {
     const command = args[1];
     const filename = args[2];
 
-    if (!std.mem.eql(u8, command, "tokenize") and !std.mem.eql(u8, command, "parse")) {
+    if (!std.mem.eql(u8, command, "tokenize") and !std.mem.eql(u8, command, "parse") and !std.mem.eql(u8, command, "evalulate")) {
         std.debug.print("Unknown command: {s}\n", .{command});
         std.process.exit(1);
     }
@@ -35,16 +37,17 @@ pub fn main() !u8 {
     }
 
     var pasterInput = parser.Input{ .source = tokens };
-    const ast = parser.parser(&pasterInput, false) catch return 65;
+    const ast = parser.parser(&pasterInput, std.mem.eql(u8, command, "parse")) catch return 65;
     if (std.mem.eql(u8, command, "parse")) {
         try parser.printExpression(std.io.getStdOut().writer(), &ast);
         parser.errorCheck(&ast) catch return 65;
         return 0;
     }
-    if (std.mem.eql(u8, command, "parse")) {
+
+    const value = eval.evalulate(&ast, std.mem.eql(u8, command, "evalulate")); //catch return 65;
+    if (std.mem.eql(u8, command, "value")) {
+        try eval.printValue(std.io.getStdOut().writer(), &value);
         return 0;
     }
-    // if (parser.errorCheck(tokens)) |err| {
-    //     break :errored err;
     return 0;
 }

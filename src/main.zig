@@ -18,7 +18,7 @@ pub fn main() !u8 {
     const command = args[1];
     const filename = args[2];
 
-    if (!std.mem.eql(u8, command, "tokenize") and !std.mem.eql(u8, command, "parse") and !std.mem.eql(u8, command, "evalulate")) {
+    if (!std.mem.eql(u8, command, "tokenize") and !std.mem.eql(u8, command, "parse") and !std.mem.eql(u8, command, "evaluate")) {
         std.debug.print("Unknown command: {s}\n", .{command});
         std.process.exit(1);
     }
@@ -44,7 +44,7 @@ pub fn main() !u8 {
         return 0;
     }
 
-    const value = eval.evalulate(&ast, std.mem.eql(u8, command, "evalulate")); //catch return 65;
+    const value = eval.evalulate(&ast, std.mem.eql(u8, command, "evaluate")); //catch return 65;
     if (std.mem.eql(u8, command, "value")) {
         try eval.printValue(std.io.getStdOut().writer(), &value);
         return 0;

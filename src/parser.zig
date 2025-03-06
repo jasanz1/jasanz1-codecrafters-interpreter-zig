@@ -83,8 +83,8 @@ pub fn printExpression(writer: anytype, expressionTree: *const Expression) !void
         .identifier => |identifier| {
             try writer.print("{s}", .{identifier});
         },
-        .parseError => |_| {
-            std.debug.print("parseError: huh\n", .{});
+        .parseError => |parseError| {
+            try std.io.getStdErr().writer().print("parseError: {}\n", .{parseError});
             return;
         },
     }
@@ -113,7 +113,6 @@ pub fn errorCheck(expression_tree: *const Expression) !void {
             try errorCheck(grouping);
         },
         .parseError => |parseError| {
-            std.io.getStdErr().writer().print("parseError: {s}\n", .{@errorName(parseError)}) catch {};
             return parseError;
         },
         else => {

@@ -45,7 +45,7 @@ pub fn main() !u8 {
     }
 
     const value = eval.evalulate(&ast, std.mem.eql(u8, command, "evaluate")); //catch return 65;
-    if (std.mem.eql(u8, command, "value")) {
+    if (std.mem.eql(u8, command, "evaluate")) {
         try eval.printValue(std.io.getStdOut().writer(), &value);
         return 0;
     }

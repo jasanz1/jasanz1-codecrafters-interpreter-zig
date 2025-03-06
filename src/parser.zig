@@ -140,9 +140,9 @@ test "parserHappy" {
     for (test_input) |test_case| {
         std.debug.print("test case: {s}\n", .{test_case.input});
         var inputTokens = lexer.Input{ .source = try std.fmt.allocPrint(std.heap.page_allocator, "{s}", .{test_case.input}) };
-        const tokens = try lexer.Tokenizer(&inputTokens);
+        const tokens = try lexer.lexer(&inputTokens, true);
         var input = Input{ .source = tokens };
-        const expression_tree = try parser(&input);
+        const expression_tree = try parser(&input, false);
         var buffer: [1024]u8 = undefined;
         var stream = std.io.fixedBufferStream(&buffer);
         const writer = stream.writer();
@@ -166,9 +166,9 @@ test "parserUnhappy" {
     for (test_input) |test_case| {
         std.debug.print("test case: {s}\n", .{test_case.input});
         var inputTokens = lexer.Input{ .source = try std.fmt.allocPrint(std.heap.page_allocator, "{s}", .{test_case.input}) };
-        const tokens = try lexer.Tokenizer(&inputTokens);
+        const tokens = try lexer.lexer(&inputTokens, true);
         var input = Input{ .source = tokens };
-        const expression_tree = parser(&input);
+        const expression_tree = parser(&input, false);
         try std.testing.expectError(test_case.expected_error, expression_tree);
         std.debug.print("\n\n\n", .{});
     }
@@ -293,8 +293,32 @@ fn makeLiteral(token: Token) ?*Expression {
     return makeNewExpressionPointer(new_expression);
 }
 
+fn convertToBoolean(new_expression: *Expression) *Expression {
+    switch (new_expression.*) {
+        .literal => |literal| {
+            switch (literal) {
+                .NUMBER => |number| {
+                    if (number == 0) {
+                        return makeNewExpressionPointer(Expression{ .literal = .{ .FALSE = {} } }).?;
+                    } else {
+                        return makeNewExpressionPointer(Expression{ .literal = .{ .TRUE = {} } }).?;
+                    }
+                },
+                .TRUE => return makeNewExpressionPointer(Expression{ .literal = .{ .TRUE = {} } }).?,
+                .FALSE => return makeNewExpressionPointer(Expression{ .literal = .{ .FALSE = {} } }).?,
+                else => {},
+            }
+        },
+        else => {},
+    }
+    return new_expression;
+}
+
 fn makeUnary(input: *Input, context: *std.ArrayList(u8), operator: Operator) *Expression {
-    const right = expressionHelper(input, context, null) orelse makeNewExpressionPointer(Expression{ .parseError = error.UnterminatedUnary }).?;
+    var right = expressionHelper(input, context, null) orelse makeNewExpressionPointer(Expression{ .parseError = error.UnterminatedUnary }).?;
+    if (operator == .BANG) {
+        right = convertToBoolean(right);
+    }
     return makeNewExpressionPointer(Expression{ .unary = .{ .operator = operator, .right = right } }).?;
 }
 

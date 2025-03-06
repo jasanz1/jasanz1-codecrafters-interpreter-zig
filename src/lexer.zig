@@ -15,6 +15,7 @@ pub const Literal = union(enum) {
     number: f64,
     string: []const u8,
 };
+
 pub const TokenType = enum {
     /// A union of all possible token types.
     LEFT_PAREN,
@@ -125,7 +126,7 @@ test "parserHappy" {
     for (test_input) |test_case| {
         std.debug.print("test case: {s}\n", .{test_case.input});
         var inputTokens = Input{ .source = try std.fmt.allocPrint(std.heap.page_allocator, "{s}", .{test_case.input}) };
-        const tokens = lexer(&inputTokens, true);
+        const tokens = lexer(&inputTokens, false);
         try std.testing.expectError(test_case.expected_error, tokens);
         std.debug.print("\n\n\n", .{});
     }

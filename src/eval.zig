@@ -141,12 +141,9 @@ fn evalSlash(left: Value, right: Value) !Value {
     return Value{ .ERROR = error.operandNotNumber };
 }
 
-
 fn evalBangEqual(left: Value, right: Value) !Value {
     if (left == .TRUE and right == .TRUE) {
         return Value{ .FALSE = {} };
-
-parseError: huh
     } else if (left == .FALSE and right == .FALSE) {
         return Value{ .FALSE = {} };
     } else if (left == .TRUE and right == .FALSE) {

@@ -141,9 +141,12 @@ fn evalSlash(left: Value, right: Value) !Value {
     return Value{ .ERROR = error.operandNotNumber };
 }
 
+
 fn evalBangEqual(left: Value, right: Value) !Value {
     if (left == .TRUE and right == .TRUE) {
         return Value{ .FALSE = {} };
+
+parseError: huh
     } else if (left == .FALSE and right == .FALSE) {
         return Value{ .FALSE = {} };
     } else if (left == .TRUE and right == .FALSE) {
@@ -247,7 +250,13 @@ fn evalPlus(left: Value, right: Value) !Value {
 fn evalUnary(unary: *const Expression) !Value {
     const right = try eval(unary.unary.right);
     switch (unary.unary.operator) {
-        .MINUS => return Value{ .NUMBER = -right.NUMBER },
+        .MINUS => {
+            if (right == .NUMBER) {
+                return Value{ .NUMBER = -right.NUMBER };
+            } else {
+                return Value{ .ERROR = error.operandNotNumber };
+            }
+        },
         .BANG => return if (right == .TRUE) Value{ .FALSE = {} } else Value{ .TRUE = {} },
         else => @panic("we should never get here"),
     }

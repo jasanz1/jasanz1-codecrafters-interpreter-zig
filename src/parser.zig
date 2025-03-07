@@ -84,7 +84,7 @@ pub fn printExpression(writer: anytype, expressionTree: *const Expression) !void
             try writer.print("{s}", .{identifier});
         },
         .parseError => |parseError| {
-            try std.io.getStdErr().writer().print("parseError: {}\n", .{parseError});
+            try std.io.getStdErr().writer().print("parseError: {}", .{parseError});
             return;
         },
     }

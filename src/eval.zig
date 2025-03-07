@@ -9,6 +9,7 @@ const Value = union(enum) {
     NIL,
     TRUE,
     FALSE,
+    ERROR: anyerror,
 };
 
 test "evalHappy" {
@@ -68,6 +69,7 @@ pub fn printValue(writer: anytype, value: *const Value) !void {
         .NIL => try writer.print("nil", .{}),
         .TRUE => try writer.print("true", .{}),
         .FALSE => try writer.print("false", .{}),
+        .ERROR => |err| try writer.print("error: {s}", .{@errorName(err)}),
     }
 }
 
@@ -103,25 +105,50 @@ fn evalBinary(binary: *const Expression) !Value {
     std.debug.print("right: {}\n", .{right});
     const value = switch (binary.binary.operator) {
         .PLUS => try evalPlus(left, right),
-        .MINUS => Value{ .NUMBER = left.NUMBER - right.NUMBER },
-        .STAR => Value{ .NUMBER = left.NUMBER * right.NUMBER },
-        .SLASH => Value{ .NUMBER = left.NUMBER / right.NUMBER },
-        .BANG_EQUAL => evalBangEqual(left, right) catch @panic("todo"),
-        .EQUAL_EQUAL => evalEqualEqual(left, right) catch @panic("todo"),
-        .LESS => evalLess(left, right) catch @panic("todo"),
-        .GREATER => evalGreater(left, right) catch @panic("todo"),
-        .LESS_EQUAL => evalLessEqual(left, right) catch @panic("todo"),
-        .GREATER_EQUAL => evalGreaterEqual(left, right) catch @panic("todo"),
+        .MINUS => try evalMinus(left, right),
+        .STAR => try evalStar(left, right),
+        .SLASH => try evalSlash(left, right),
+        .BANG_EQUAL => try evalBangEqual(left, right),
+        .EQUAL_EQUAL => try evalEqualEqual(left, right),
+        .LESS => try evalLess(left, right),
+        .GREATER => try evalGreater(left, right),
+        .LESS_EQUAL => try evalLessEqual(left, right),
+        .GREATER_EQUAL => try evalGreaterEqual(left, right),
         else => @panic("we should never get here"),
     };
     std.debug.print("value: {}\n", .{value});
     return value;
 }
 
+fn evalMinus(left: Value, right: Value) !Value {
+    if (left == .NUMBER and right == .NUMBER) {
+        return Value{ .NUMBER = left.NUMBER - right.NUMBER };
+    }
+    return Value{ .ERROR = error.operandNotNumber };
+}
+
+fn evalStar(left: Value, right: Value) !Value {
+    if (left == .NUMBER and right == .NUMBER) {
+        return Value{ .NUMBER = left.NUMBER * right.NUMBER };
+    }
+    return Value{ .ERROR = error.operandNotNumber };
+}
+
+fn evalSlash(left: Value, right: Value) !Value {
+    if (left == .NUMBER and right == .NUMBER) {
+        return Value{ .NUMBER = left.NUMBER / right.NUMBER };
+    }
+    return Value{ .ERROR = error.operandNotNumber };
+}
+
 fn evalBangEqual(left: Value, right: Value) !Value {
     if (left == .TRUE and right == .TRUE) {
-        return Value{ .TRUE = {} };
+        return Value{ .FALSE = {} };
     } else if (left == .FALSE and right == .FALSE) {
+        return Value{ .FALSE = {} };
+    } else if (left == .TRUE and right == .FALSE) {
+        return Value{ .TRUE = {} };
+    } else if (left == .FALSE and right == .TRUE) {
         return Value{ .TRUE = {} };
     } else if (left == .NUMBER and right == .NUMBER) {
         if (left.NUMBER != right.NUMBER) {
@@ -133,8 +160,6 @@ fn evalBangEqual(left: Value, right: Value) !Value {
             return Value{ .TRUE = {} };
         }
         return Value{ .FALSE = {} };
-    } else {
-        return Value{ .FALSE = {} };
     }
     @panic("todo");
 }
@@ -144,6 +169,10 @@ fn evalEqualEqual(left: Value, right: Value) !Value {
         return Value{ .TRUE = {} };
     } else if (left == .FALSE and right == .FALSE) {
         return Value{ .TRUE = {} };
+    } else if (left == .TRUE and right == .FALSE) {
+        return Value{ .FALSE = {} };
+    } else if (left == .FALSE and right == .TRUE) {
+        return Value{ .FALSE = {} };
     } else if (left == .NUMBER and right == .NUMBER) {
         if (left.NUMBER == right.NUMBER) {
             return Value{ .TRUE = {} };
@@ -154,58 +183,65 @@ fn evalEqualEqual(left: Value, right: Value) !Value {
             return Value{ .TRUE = {} };
         }
         return Value{ .FALSE = {} };
-    } else {
-        return Value{ .FALSE = {} };
     }
+    return Value{ .FALSE = {} };
 }
 fn evalLessEqual(left: Value, right: Value) !Value {
-    if (left.NUMBER <= right.NUMBER) {
-        return Value{ .TRUE = {} };
-    } else {
-        return Value{ .FALSE = {} };
+    if (left == .NUMBER and right == .NUMBER) {
+        if (left.NUMBER <= right.NUMBER) {
+            return Value{ .TRUE = {} };
+        } else {
+            return Value{ .FALSE = {} };
+        }
     }
+    return Value{ .ERROR = error.operandNotNumber };
 }
 
 fn evalGreaterEqual(left: Value, right: Value) !Value {
-    if (left.NUMBER >= right.NUMBER) {
-        return Value{ .TRUE = {} };
-    } else {
-        return Value{ .FALSE = {} };
+    if (left == .NUMBER and right == .NUMBER) {
+        if (left.NUMBER >= right.NUMBER) {
+            return Value{ .TRUE = {} };
+        } else {
+            return Value{ .FALSE = {} };
+        }
     }
-    // @panic("todo");
+
+    return Value{ .ERROR = error.operandNotNumber };
 }
 
 fn evalLess(left: Value, right: Value) !Value {
-    if (left.NUMBER < right.NUMBER) {
-        return Value{ .TRUE = {} };
-    } else {
-        return Value{ .FALSE = {} };
+    if (left == .NUMBER and right == .NUMBER) {
+        if (left.NUMBER < right.NUMBER) {
+            return Value{ .TRUE = {} };
+        } else {
+            return Value{ .FALSE = {} };
+        }
     }
+    return Value{ .ERROR = error.operandNotNumber };
 }
 
 fn evalGreater(left: Value, right: Value) !Value {
-    if (left.NUMBER > right.NUMBER) {
-        return Value{ .TRUE = {} };
-    } else {
-        return Value{ .FALSE = {} };
+    if (left == .NUMBER and right == .NUMBER) {
+        if (left.NUMBER > right.NUMBER) {
+            return Value{ .TRUE = {} };
+        } else {
+            return Value{ .FALSE = {} };
+        }
     }
-    // @panic("todo");
+    return Value{ .ERROR = error.operandNotNumber };
 }
 
 fn evalPlus(left: Value, right: Value) !Value {
     if (left == .STRING and right == .STRING) {
         return Value{ .STRING = try std.fmt.allocPrint(std.heap.page_allocator, "{s}{s}", .{ left.STRING, right.STRING }) };
-    }
-    if (left == .NUMBER and right == .NUMBER) {
+    } else if (left == .NUMBER and right == .NUMBER) {
         return Value{ .NUMBER = left.NUMBER + right.NUMBER };
-    }
-    if (left == .STRING and right == .NUMBER) {
+    } else if (left == .STRING and right == .NUMBER) {
         return Value{ .STRING = try std.fmt.allocPrint(std.heap.page_allocator, "{s}{d}", .{ left.STRING, right.NUMBER }) };
-    }
-    if (left == .NUMBER and right == .STRING) {
+    } else if (left == .NUMBER and right == .STRING) {
         return Value{ .STRING = try std.fmt.allocPrint(std.heap.page_allocator, "{d}{s}", .{ left.NUMBER, right.STRING }) };
     }
-    @panic("todo");
+    return Value{ .ERROR = error.operandsTypeMustMatch };
 }
 
 fn evalUnary(unary: *const Expression) !Value {

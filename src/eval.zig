@@ -105,9 +105,6 @@ fn eval(ast: *const Expression) error{OutOfMemory}!Value {
 fn evalBinary(binary: *const Expression) !Value {
     const left = try eval(binary.binary.left);
     const right = try eval(binary.binary.right);
-    std.debug.print("evalBinary: {s}\n", .{binary.binary.operator.stringify()});
-    std.debug.print("left: {}\n", .{left});
-    std.debug.print("right: {}\n", .{right});
     const value = switch (binary.binary.operator) {
         .PLUS => try evalPlus(left, right),
         .MINUS => try evalMinus(left, right),
@@ -121,7 +118,6 @@ fn evalBinary(binary: *const Expression) !Value {
         .GREATER_EQUAL => try evalGreaterEqual(left, right),
         else => @panic("we should never get here"),
     };
-    std.debug.print("value: {}\n", .{value});
     return value;
 }
 
@@ -241,10 +237,6 @@ fn evalPlus(left: Value, right: Value) !Value {
         return Value{ .STRING = try std.fmt.allocPrint(std.heap.page_allocator, "{s}{s}", .{ left.STRING, right.STRING }) };
     } else if (left == .NUMBER and right == .NUMBER) {
         return Value{ .NUMBER = left.NUMBER + right.NUMBER };
-    } else if (left == .STRING and right == .NUMBER) {
-        return Value{ .STRING = try std.fmt.allocPrint(std.heap.page_allocator, "{s}{d}", .{ left.STRING, right.NUMBER }) };
-    } else if (left == .NUMBER and right == .STRING) {
-        return Value{ .STRING = try std.fmt.allocPrint(std.heap.page_allocator, "{d}{s}", .{ left.NUMBER, right.STRING }) };
     }
     return Value{ .ERROR = error.operandsTypeMustMatch };
 }

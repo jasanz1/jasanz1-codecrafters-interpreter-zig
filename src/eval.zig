@@ -73,11 +73,16 @@ pub fn printValue(writer: anytype, value: *const Value) !void {
     }
 }
 
-pub fn evalulate(ast: *const Expression, ignore_errors: bool) !Value {
-    const value = try eval(ast);
-    if (!ignore_errors) {
-        std.debug.print("parseError: huh\n", .{});
+fn errorCheck(value: Value) !void {
+    switch (value) {
+        .ERROR => |err| return err,
+        else => {},
     }
+}
+
+pub fn evalulate(ast: *const Expression) !Value {
+    const value = try eval(ast);
+    try errorCheck(value);
     return value;
 }
 

@@ -1,8 +1,27 @@
 const std = @import("std");
 const Expression = @import("parser.zig").Expression;
+const Statements = @import("parser.zig").Statements;
 const Operator = @import("parser.zig").Operator;
 const lexer = @import("lexer.zig");
 const parser = @import("parser.zig");
+const evalErrors = error{
+    OutOfMemory,
+    NoSpaceLeft,
+    DiskQuota,
+    FileTooBig,
+    InputOutput,
+    DeviceBusy,
+    InvalidArgument,
+    AccessDenied,
+    BrokenPipe,
+    SystemResources,
+    OperationAborted,
+    NotOpenForWriting,
+    LockViolation,
+    WouldBlock,
+    ConnectionResetByPeer,
+    Unexpected,
+};
 const Value = union(enum) {
     STRING: []const u8,
     NUMBER: f64,
@@ -45,18 +64,19 @@ test "evalHappy" {
         TestCases{ .input = "\"foo\" != \"bar\"", .expected_output = "true" },
         TestCases{ .input = "\"foo\" == \"foo\"", .expected_output = "true" },
         TestCases{ .input = "61 == \"61\"", .expected_output = "false" },
+        TestCases{ .input = "print \"Hello, World!\"", .expected_output = "Hello, World!" },
     };
     for (test_input) |test_case| {
         std.debug.print("test case: {s}\n", .{test_case.input});
         var inputTokens = lexer.Input{ .source = try std.fmt.allocPrint(std.heap.page_allocator, "{s}", .{test_case.input}) };
         const tokens = try lexer.lexer(&inputTokens, true);
         var input = parser.Input{ .source = tokens };
-        const expression_tree = try parser.parser(&input, true);
+        var expression_tree = try parser.parser(&input, true);
         var buffer: [1024]u8 = undefined;
         var stream = std.io.fixedBufferStream(&buffer);
         const writer = stream.writer();
-        const value = try evalulate(&expression_tree, false);
-        try printValue(writer, &value);
+        const value = try evalulate(&expression_tree);
+        try printValues(writer, &value);
         try std.testing.expectEqualStrings(test_case.expected_output, stream.buffer[0..stream.pos]);
         std.debug.print("\n\n\n", .{});
     }
@@ -73,20 +93,31 @@ pub fn printValue(writer: anytype, value: *const Value) !void {
     }
 }
 
-fn errorCheck(value: Value) !void {
-    switch (value) {
-        .ERROR => |err| return err,
-        else => {},
+pub fn printValues(writer: anytype, values: *const []Value) !void {
+    for (values.*) |current| {
+        printValue(writer, &current) catch return;
     }
 }
 
-pub fn evalulate(ast: *const Expression) !Value {
-    const value = try eval(ast);
-    try errorCheck(value);
-    return value;
+fn errorCheck(value: []Value) !void {
+    for (value) |current| {
+        switch (current) {
+            .ERROR => |err| return err,
+            else => {},
+        }
+    }
 }
-
-fn eval(ast: *const Expression) error{OutOfMemory}!Value {
+pub fn evalulate(ast: *Statements) ![]Value {
+    var value = std.ArrayList(Value).init(std.heap.page_allocator);
+    defer value.deinit();
+    for (ast.*) |current| {
+        try value.append(try eval(current));
+    }
+    const valueArray = try value.toOwnedSlice();
+    try errorCheck(valueArray);
+    return valueArray;
+}
+fn eval(ast: *const Expression) evalErrors!Value {
     return switch (ast.*) {
         .binary => try evalBinary(ast),
         .unary => try evalUnary(ast),
@@ -97,11 +128,19 @@ fn eval(ast: *const Expression) error{OutOfMemory}!Value {
             .TRUE => Value{ .TRUE = {} },
             .FALSE => Value{ .FALSE = {} },
         },
+        .print => |print| try evalPrint(print),
         .grouping => |grouping| eval(grouping),
         .identifier => @panic("todo"),
         .parseError => @panic("todo"),
     };
 }
+
+fn evalPrint(print: *const Expression) !Value {
+    const value = try eval(print);
+    try printValue(std.io.getStdOut().writer(), &value);
+    return value;
+}
+
 fn evalBinary(binary: *const Expression) !Value {
     const left = try eval(binary.binary.left);
     const right = try eval(binary.binary.right);

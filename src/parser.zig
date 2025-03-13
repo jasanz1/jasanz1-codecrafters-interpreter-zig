@@ -33,16 +33,19 @@ pub const Operator = enum {
     }
 };
 
+pub const Statements = []*Expression;
+
 pub const Expression = union(enum) {
     binary: struct { left: *Expression, operator: Operator, right: *Expression },
     unary: struct { operator: Operator, right: *Expression },
     literal: union(enum) { NUMBER: f64, STRING: []const u8, NIL, TRUE, FALSE },
     grouping: *Expression,
+    print: *Expression,
     identifier: []const u8,
     parseError: anyerror,
 };
 
-pub fn printExpression(writer: anytype, expressionTree: *const Expression) !void {
+pub fn printExpression(writer: anytype, expressionTree: *Expression) !void {
     switch (expressionTree.*) {
         .binary => |*binary| {
             try writer.print("({s} ", .{binary.operator.stringify()});
@@ -75,6 +78,11 @@ pub fn printExpression(writer: anytype, expressionTree: *const Expression) !void
                 .FALSE => try writer.print("false", .{}),
             }
         },
+        .print => |print| {
+            try writer.print("(print ", .{});
+            try printExpression(writer, print);
+            try writer.print(")", .{});
+        },
         .grouping => |grouping| {
             try writer.print("(group ", .{});
             try printExpression(writer, grouping);
@@ -89,28 +97,44 @@ pub fn printExpression(writer: anytype, expressionTree: *const Expression) !void
         },
     }
 }
-
-pub fn parser(input: *Input, ignore_errors: bool) !Expression {
-    var context = std.ArrayList(u8).init(std.heap.page_allocator);
-    defer context.deinit();
-    const expression_tree = expression(input, &context);
-    if (!ignore_errors) {
-        try errorCheck(expression_tree);
+pub fn printStatements(writer: anytype, statements: Statements) !void {
+    for (statements) |current| {
+        try printExpression(writer, current);
     }
-    return expression_tree.*;
 }
 
-pub fn errorCheck(expression_tree: *const Expression) !void {
+pub fn parser(input: *Input, ignore_errors: bool) !Statements {
+    var context = std.ArrayList(u8).init(std.heap.page_allocator);
+    var statements = std.ArrayList(*Expression).init(std.heap.page_allocator);
+    defer context.deinit();
+    while (input.peek()) |_| {
+        const expression_tree = try expression(input, &context);
+        try statements.append(expression_tree);
+    }
+    const expressionArray: Statements = try statements.toOwnedSlice();
+    if (!ignore_errors) {
+        try errorCheckStatements(expressionArray);
+    }
+    return expressionArray;
+}
+
+pub fn errorCheckStatements(statements: Statements) !void {
+    for (statements) |current| {
+        try errorCheckExpression(current);
+    }
+}
+
+pub fn errorCheckExpression(expression_tree: *const Expression) !void {
     switch (expression_tree.*) {
         .binary => |*binary| {
-            try errorCheck(binary.left);
-            try errorCheck(binary.right);
+            try errorCheckExpression(binary.left);
+            try errorCheckExpression(binary.right);
         },
         .unary => |unary| {
-            try errorCheck(unary.right);
+            try errorCheckExpression(unary.right);
         },
         .grouping => |grouping| {
-            try errorCheck(grouping);
+            try errorCheckExpression(grouping);
         },
         .parseError => |parseError| {
             return parseError;
@@ -135,6 +159,7 @@ test "parserHappy" {
         TestCases{ .input = "(-30 + 65) * (46 * 46) / (92 + 29)", .expected_output = "(/ (* (group (+ (- 30.0) 65.0)) (group (* 46.0 46.0))) (group (+ 92.0 29.0)))" },
         TestCases{ .input = "83 < 99 < 115", .expected_output = "(< (< 83.0 99.0) 115.0)" },
         TestCases{ .input = "87 <= 179", .expected_output = "(<= 87.0 179.0)" },
+        TestCases{ .input = "print \"Hello, World!\";\n print 42;", .expected_output = "(print Hello, World!) (print 42)" },
     };
     for (test_input) |test_case| {
         std.debug.print("test case: {s}\n", .{test_case.input});
@@ -145,7 +170,7 @@ test "parserHappy" {
         var buffer: [1024]u8 = undefined;
         var stream = std.io.fixedBufferStream(&buffer);
         const writer = stream.writer();
-        try printExpression(writer, &expression_tree);
+        try printStatements(writer, expression_tree);
         try std.testing.expectEqualStrings(test_case.expected_output, stream.buffer[0..stream.pos]);
         std.debug.print("\n\n\n", .{});
     }
@@ -173,9 +198,13 @@ test "parserUnhappy" {
     }
 }
 
-fn expression(input: *Input, context: *std.ArrayList(u8)) *Expression {
+fn expression(input: *Input, context: *std.ArrayList(u8)) !*Expression {
     var expression_helper: ?*Expression = null;
-    while (input.peek()) |_| {
+    while (input.peek()) |c| {
+        if (c.token_type == .SEMICOLON) {
+            _ = input.next();
+            break;
+        }
         expression_helper = expressionHelper(input, context, expression_helper);
         if (@import("builtin").is_test) {
             printExpression(std.io.getStdOut().writer(), expression_helper.?) catch @panic("error printing expression");
@@ -216,7 +245,7 @@ fn expressionHelper(input: *Input, context: *std.ArrayList(u8), previous: ?*Expr
             .RIGHT_PAREN => makeNewExpressionPointer(Expression{ .parseError = error.UnterminatedGroup }).?,
             .LEFT_BRACE => @panic("TODO"),
             .RIGHT_BRACE => @panic("TODO"),
-            .SEMICOLON => @panic("TODO"),
+            .SEMICOLON => return previous,
             .COMMA => @panic("TODO"),
             .PLUS => makeBinary(input, context, previous, .PLUS, plusOrMinusPercedence),
             .STAR => makeBinary(input, context, previous, .STAR, multipleOrDividePercedence),
@@ -237,7 +266,7 @@ fn expressionHelper(input: *Input, context: *std.ArrayList(u8), previous: ?*Expr
             .FUN => @panic("TODO"),
             .IF => @panic("TODO IF"),
             .OR => @panic("TODO"),
-            .PRINT => @panic("TODO"),
+            .PRINT => makePrint(input, context),
             .RETURN => @panic("TODO"),
             .SUPER => @panic("TODO"),
             .THIS => @panic("TODO"),
@@ -256,12 +285,20 @@ fn expressionHelper(input: *Input, context: *std.ArrayList(u8), previous: ?*Expr
     return null;
 }
 
+fn makePrint(input: *Input, context: *std.ArrayList(u8)) *Expression {
+    var right = expressionHelper(input, context, null) orelse makeNewExpressionPointer(Expression{ .parseError = error.UnterminatedBinary }).?;
+    if (right.* == .parseError) {
+        right = makeNewExpressionPointer(Expression{ .parseError = error.UnterminatedBinary }).?;
+    }
+    return makeNewExpressionPointer(Expression{ .print = right }).?;
+}
+
 fn handleEOF(context: *std.ArrayList(u8), previous: ?*Expression) *Expression {
     if (context.items.len == 0) {
         return previous orelse return makeNewExpressionPointer(Expression{ .parseError = error.unexpectedEOF }).?;
     }
     if (previous) |prev| {
-        errorCheck(prev) catch return prev;
+        errorCheckExpression(prev) catch return prev;
     }
     return makeNewExpressionPointer(Expression{ .parseError = error.unexpectedEOF }).?;
 }

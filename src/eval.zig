@@ -89,6 +89,7 @@ fn eval(ast: *const Expression) evalErrors!Value {
 fn evalPrint(print: *const Expression) !Value {
     const value = try eval(print);
     try printValue(std.io.getStdOut().writer(), &value);
+    try std.io.getStdOut().writer().writeAll("\n", .{});
     return value;
 }
 

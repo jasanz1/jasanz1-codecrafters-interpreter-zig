@@ -65,6 +65,7 @@ test "evalHappy" {
         TestCases{ .input = "\"foo\" == \"foo\"", .expected_output = "true" },
         TestCases{ .input = "61 == \"61\"", .expected_output = "false" },
         TestCases{ .input = "print \"Hello, World!\"", .expected_output = "Hello, World!" },
+        TestCases{ .input = "print \"quz\" + \"world\" + \"hello\";", .expected_output = "quzworldhello" },
     };
     for (test_input) |test_case| {
         std.debug.print("test case: {s}\n", .{test_case.input});

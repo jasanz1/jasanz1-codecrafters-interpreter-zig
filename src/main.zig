@@ -39,7 +39,7 @@ pub fn main() !u8 {
     var pasterInput = parser.Input{ .source = tokens };
     const ast = parser.parser(&pasterInput, std.mem.eql(u8, command, "parse")) catch return 65;
     if (std.mem.eql(u8, command, "parse")) {
-        parser.errorCheck(&ast) catch return 65;
+        parser.errorCheckExpression(&ast) catch return 65;
         try parser.printExpression(std.io.getStdOut().writer(), &ast);
         return 0;
     }

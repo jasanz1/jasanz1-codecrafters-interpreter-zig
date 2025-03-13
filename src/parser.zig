@@ -100,6 +100,7 @@ pub fn printExpression(writer: anytype, expressionTree: *Expression) !void {
 pub fn printStatements(writer: anytype, statements: Statements) !void {
     for (statements) |current| {
         try printExpression(writer, current);
+        writer.writeAll("\n") catch unreachable;
     }
 }
 
@@ -107,7 +108,10 @@ pub fn parser(input: *Input, ignore_errors: bool) !Statements {
     var context = std.ArrayList(u8).init(std.heap.page_allocator);
     var statements = std.ArrayList(*Expression).init(std.heap.page_allocator);
     defer context.deinit();
-    while (input.peek()) |_| {
+    while (input.peek()) |c| {
+        if (c.token_type == .EOF) {
+            break;
+        }
         const expression_tree = try expression(input, &context);
         try statements.append(expression_tree);
     }
@@ -152,14 +156,14 @@ test "parserHappy" {
         expected_output: []const u8,
     };
     const test_input = [_]TestCases{
-        TestCases{ .input = "1 * 2", .expected_output = "(* 1.0 2.0)" },
-        TestCases{ .input = "52 + 80 - 94", .expected_output = "(- (+ 52.0 80.0) 94.0)" },
-        TestCases{ .input = "78 - 93 * 79 - 32", .expected_output = "(- (- 78.0 (* 93.0 79.0)) 32.0)" },
-        TestCases{ .input = " \"hello\" + \"world\"", .expected_output = "(+ hello world)" },
-        TestCases{ .input = "(-30 + 65) * (46 * 46) / (92 + 29)", .expected_output = "(/ (* (group (+ (- 30.0) 65.0)) (group (* 46.0 46.0))) (group (+ 92.0 29.0)))" },
-        TestCases{ .input = "83 < 99 < 115", .expected_output = "(< (< 83.0 99.0) 115.0)" },
-        TestCases{ .input = "87 <= 179", .expected_output = "(<= 87.0 179.0)" },
-        TestCases{ .input = "print \"Hello, World!\";\n print 42;", .expected_output = "(print Hello, World!) (print 42)" },
+        TestCases{ .input = "1 * 2", .expected_output = "(* 1.0 2.0)\n" },
+        TestCases{ .input = "52 + 80 - 94", .expected_output = "(- (+ 52.0 80.0) 94.0)\n" },
+        TestCases{ .input = "78 - 93 * 79 - 32", .expected_output = "(- (- 78.0 (* 93.0 79.0)) 32.0)\n" },
+        TestCases{ .input = " \"hello\" + \"world\"", .expected_output = "(+ hello world)\n" },
+        TestCases{ .input = "(-30 + 65) * (46 * 46) / (92 + 29)", .expected_output = "(/ (* (group (+ (- 30.0) 65.0)) (group (* 46.0 46.0))) (group (+ 92.0 29.0)))\n" },
+        TestCases{ .input = "83 < 99 < 115", .expected_output = "(< (< 83.0 99.0) 115.0)\n" },
+        TestCases{ .input = "87 <= 179", .expected_output = "(<= 87.0 179.0)\n" },
+        TestCases{ .input = "print \"Hello, World!\";\n print 42;", .expected_output = "(print Hello, World!)\n(print 42.0)\n" },
     };
     for (test_input) |test_case| {
         std.debug.print("test case: {s}\n", .{test_case.input});

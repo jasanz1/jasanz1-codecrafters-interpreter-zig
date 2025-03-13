@@ -48,7 +48,7 @@ pub fn printValues(writer: anytype, values: *const []Value) !void {
     }
 }
 
-fn errorCheck(value: []Value) !void {
+pub fn errorCheck(value: []Value) !void {
     for (value) |current| {
         switch (current) {
             .ERROR => |err| return err,

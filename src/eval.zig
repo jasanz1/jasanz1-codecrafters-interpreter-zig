@@ -107,14 +107,16 @@ fn errorCheck(value: []Value) !void {
         }
     }
 }
-pub fn evalulate(ast: *Statements) ![]Value {
+pub fn evalulate(ast: *Statements, ignore_errors: bool) ![]Value {
     var value = std.ArrayList(Value).init(std.heap.page_allocator);
     defer value.deinit();
     for (ast.*) |current| {
         try value.append(try eval(current));
     }
     const valueArray = try value.toOwnedSlice();
-    try errorCheck(valueArray);
+    if (!ignore_errors) {
+        try errorCheck(valueArray);
+    }
     return valueArray;
 }
 fn eval(ast: *const Expression) evalErrors!Value {

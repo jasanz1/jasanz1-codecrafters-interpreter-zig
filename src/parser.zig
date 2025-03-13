@@ -258,7 +258,7 @@ fn expressionHelper(input: *Input, context: *std.ArrayList(u8), previous: ?*Expr
 }
 
 fn makePrint(input: *Input, context: *std.ArrayList(u8)) *Expression {
-    var right = try printSingleExpression(input, context);
+    var right = try printExpression(input, context);
     if (right.* == .parseError) {
         right = makeNewExpressionPointer(Expression{ .parseError = error.UnterminatedBinary }).?;
     }

@@ -140,11 +140,7 @@ pub fn parser(input: *Input, ignore_errors: bool) !Statements {
             break;
         }
         const expression_tree = try expression(input, &context);
-        std.debug.print("expression tree: ", .{});
-        printExpression(std.io.getStdOut().writer(), expression_tree) catch @panic("error printing expression");
         try statements.append(expression_tree);
-        std.debug.print("statements: ", .{});
-        printStatements(std.io.getStdOut().writer(), statements.items) catch @panic("error printing statements");
     }
     const expressionArray: Statements = try statements.toOwnedSlice();
     if (!ignore_errors) {

@@ -152,7 +152,6 @@ pub fn parser(input: *Input, ignore_errors: bool) !Statements {
 fn expression(input: *Input, context: *std.ArrayList(u8)) !*Expression {
     var expression_helper: ?*Expression = null;
     while (input.peek()) |c| {
-        std.debug.print("char: {}\n", .{c});
         if (c.token_type == .SEMICOLON) {
             std.debug.print("semicolon\n", .{});
             _ = input.next();
@@ -168,10 +167,9 @@ fn expression(input: *Input, context: *std.ArrayList(u8)) !*Expression {
     return expression_helper.?;
 }
 
-fn stringExpression(input: *Input, context: *std.ArrayList(u8)) !*Expression {
+fn printExpression(input: *Input, context: *std.ArrayList(u8)) !*Expression {
     var expression_helper: ?*Expression = null;
     while (input.peek()) |c| {
-        std.debug.print("char: {}\n", .{c});
         if (c.token_type == .SEMICOLON) {
             std.debug.print("semicolon\n", .{});
             break;
@@ -182,6 +180,9 @@ fn stringExpression(input: *Input, context: *std.ArrayList(u8)) !*Expression {
             printExpression(std.io.getStdOut().writer(), expression_helper.?) catch @panic("error printing expression");
             std.debug.print("\n", .{});
         }
+    }
+    if (expression_helper) |_| {} else {
+        return makeNewExpressionPointer(Expression{ .parseError = error.printError }).?;
     }
     return expression_helper.?;
 }
@@ -257,7 +258,7 @@ fn expressionHelper(input: *Input, context: *std.ArrayList(u8), previous: ?*Expr
 }
 
 fn makePrint(input: *Input, context: *std.ArrayList(u8)) *Expression {
-    var right = try stringExpression(input, context);
+    var right = try printExpression(input, context);
     if (right.* == .parseError) {
         right = makeNewExpressionPointer(Expression{ .parseError = error.UnterminatedBinary }).?;
     }

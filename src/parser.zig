@@ -129,9 +129,8 @@ pub fn errorCheckExpression(expression_tree: *const Expression) !void {
         .print => |print| {
             try errorCheckExpression(print);
         },
-        else => {
-            @panic("not implemented");
-        },
+        .literal => return,
+        .identifier => return,
     }
 }
 

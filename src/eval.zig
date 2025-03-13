@@ -31,58 +31,6 @@ const Value = union(enum) {
     ERROR: anyerror,
 };
 
-test "evalHappy" {
-    const TestCases = struct {
-        input: []const u8,
-        expected_output: []const u8,
-    };
-    const test_input = [_]TestCases{
-        TestCases{ .input = "1 * 2", .expected_output = "2" },
-        TestCases{ .input = "52 + 80 - 94", .expected_output = "38" },
-        TestCases{ .input = "78 - 93 * 79 - 32", .expected_output = "-7301" },
-        TestCases{ .input = "true", .expected_output = "true" },
-        TestCases{ .input = "false", .expected_output = "false" },
-        TestCases{ .input = "true", .expected_output = "true" },
-        TestCases{ .input = "\"hello world!\"", .expected_output = "hello world!" },
-        TestCases{ .input = "10.40", .expected_output = "10.4" },
-        TestCases{ .input = "10", .expected_output = "10" },
-        TestCases{ .input = "(\"hello world!\")", .expected_output = "hello world!" },
-        TestCases{ .input = "(true)", .expected_output = "true" },
-        TestCases{ .input = "(10.40)", .expected_output = "10.4" },
-        TestCases{ .input = "((false))", .expected_output = "false" },
-        TestCases{ .input = "-73", .expected_output = "-73" },
-        TestCases{ .input = "!true", .expected_output = "false" },
-        TestCases{ .input = "!10.40", .expected_output = "false" },
-        TestCases{ .input = "!((false))", .expected_output = "true" },
-        TestCases{ .input = "\"hello\" + \" world!\"", .expected_output = "hello world!" },
-        TestCases{ .input = "\"42\" + \"24\"", .expected_output = "4224" },
-        TestCases{ .input = "\"foo\" + \"bar\"", .expected_output = "foobar" },
-        TestCases{ .input = "57 > -65", .expected_output = "true" },
-        TestCases{ .input = "11 >= 11", .expected_output = "true" },
-        TestCases{ .input = "(54 - 67) >= -(114 / 57 + 11)", .expected_output = "true" },
-        TestCases{ .input = "\"hello\" == \"world\"", .expected_output = "false" },
-        TestCases{ .input = "\"foo\" != \"bar\"", .expected_output = "true" },
-        TestCases{ .input = "\"foo\" == \"foo\"", .expected_output = "true" },
-        TestCases{ .input = "61 == \"61\"", .expected_output = "false" },
-        TestCases{ .input = "print \"Hello, World!\"", .expected_output = "Hello, World!" },
-        TestCases{ .input = "print \"quz\" + \"world\" + \"hello\";", .expected_output = "quzworldhello" },
-    };
-    for (test_input) |test_case| {
-        std.debug.print("test case: {s}\n", .{test_case.input});
-        var inputTokens = lexer.Input{ .source = try std.fmt.allocPrint(std.heap.page_allocator, "{s}", .{test_case.input}) };
-        const tokens = try lexer.lexer(&inputTokens, true);
-        var input = parser.Input{ .source = tokens };
-        var expression_tree = try parser.parser(&input, true);
-        var buffer: [1024]u8 = undefined;
-        var stream = std.io.fixedBufferStream(&buffer);
-        const writer = stream.writer();
-        const value = try evalulate(&expression_tree, true);
-        try printValues(writer, &value);
-        try std.testing.expectEqualStrings(test_case.expected_output, stream.buffer[0..stream.pos]);
-        std.debug.print("\n\n\n", .{});
-    }
-}
-
 pub fn printValue(writer: anytype, value: *const Value) !void {
     switch (value.*) {
         .STRING => |string| try writer.print("{s}", .{string}),
@@ -295,5 +243,57 @@ fn evalUnary(unary: *const Expression) !Value {
         },
         .BANG => return if (right == .TRUE) Value{ .FALSE = {} } else Value{ .TRUE = {} },
         else => @panic("we should never get here"),
+    }
+}
+test "evalHappy" {
+    const TestCases = struct {
+        input: []const u8,
+        expected_output: []const u8,
+    };
+    const test_input = [_]TestCases{
+        TestCases{ .input = "1 * 2", .expected_output = "2" },
+        TestCases{ .input = "52 + 80 - 94", .expected_output = "38" },
+        TestCases{ .input = "78 - 93 * 79 - 32", .expected_output = "-7301" },
+        TestCases{ .input = "true", .expected_output = "true" },
+        TestCases{ .input = "false", .expected_output = "false" },
+        TestCases{ .input = "true", .expected_output = "true" },
+        TestCases{ .input = "\"hello world!\"", .expected_output = "hello world!" },
+        TestCases{ .input = "10.40", .expected_output = "10.4" },
+        TestCases{ .input = "10", .expected_output = "10" },
+        TestCases{ .input = "(\"hello world!\")", .expected_output = "hello world!" },
+        TestCases{ .input = "(true)", .expected_output = "true" },
+        TestCases{ .input = "(10.40)", .expected_output = "10.4" },
+        TestCases{ .input = "((false))", .expected_output = "false" },
+        TestCases{ .input = "-73", .expected_output = "-73" },
+        TestCases{ .input = "!true", .expected_output = "false" },
+        TestCases{ .input = "!10.40", .expected_output = "false" },
+        TestCases{ .input = "!((false))", .expected_output = "true" },
+        TestCases{ .input = "\"hello\" + \" world!\"", .expected_output = "hello world!" },
+        TestCases{ .input = "\"42\" + \"24\"", .expected_output = "4224" },
+        TestCases{ .input = "\"foo\" + \"bar\"", .expected_output = "foobar" },
+        TestCases{ .input = "57 > -65", .expected_output = "true" },
+        TestCases{ .input = "11 >= 11", .expected_output = "true" },
+        TestCases{ .input = "(54 - 67) >= -(114 / 57 + 11)", .expected_output = "true" },
+        TestCases{ .input = "\"hello\" == \"world\"", .expected_output = "false" },
+        TestCases{ .input = "\"foo\" != \"bar\"", .expected_output = "true" },
+        TestCases{ .input = "\"foo\" == \"foo\"", .expected_output = "true" },
+        TestCases{ .input = "61 == \"61\"", .expected_output = "false" },
+        TestCases{ .input = "print \"Hello, World!\"", .expected_output = "Hello, World!" },
+        TestCases{ .input = "print \"quz\" + \"world\" + \"hello\";", .expected_output = "quzworldhello" },
+        TestCases{ .input = "print false;", .expected_output = "false" },
+    };
+    for (test_input) |test_case| {
+        std.debug.print("test case: {s}\n", .{test_case.input});
+        var inputTokens = lexer.Input{ .source = try std.fmt.allocPrint(std.heap.page_allocator, "{s}", .{test_case.input}) };
+        const tokens = try lexer.lexer(&inputTokens, true);
+        var input = parser.Input{ .source = tokens };
+        var expression_tree = try parser.parser(&input, true);
+        var buffer: [1024]u8 = undefined;
+        var stream = std.io.fixedBufferStream(&buffer);
+        const writer = stream.writer();
+        const value = try evalulate(&expression_tree, true);
+        try printValues(writer, &value);
+        try std.testing.expectEqualStrings(test_case.expected_output, stream.buffer[0..stream.pos]);
+        std.debug.print("\n\n\n", .{});
     }
 }

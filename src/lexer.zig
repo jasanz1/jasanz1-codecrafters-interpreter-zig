@@ -114,23 +114,6 @@ pub fn errorCheck(tokens: []Token) !void {
         }
     }
 }
-test "parserHappy" {
-    const TestCases = struct {
-        input: []const u8,
-        expected_error: anyerror,
-    };
-    const test_input = [_]TestCases{
-        TestCases{ .input = "\"foo\" \"unterminated", .expected_error = error.UnterminatedString },
-    };
-
-    for (test_input) |test_case| {
-        std.debug.print("test case: {s}\n", .{test_case.input});
-        var inputTokens = Input{ .source = try std.fmt.allocPrint(std.heap.page_allocator, "{s}", .{test_case.input}) };
-        const tokens = lexer(&inputTokens, false);
-        try std.testing.expectError(test_case.expected_error, tokens);
-        std.debug.print("\n\n\n", .{});
-    }
-}
 
 pub fn lexer(source: *Input, ignore_errors: bool) ![]Token {
     const tokens = try Tokenizer(source);
@@ -308,5 +291,22 @@ fn readmultiCharacterEqualToken(source: *Input, single_token_type: TokenType, mu
         }
     } else {
         return Token{ .line_number = source.line_number, .token_type = single_token_type, .lexeme = current_str, .literal = null };
+    }
+}
+test "parserHappy" {
+    const TestCases = struct {
+        input: []const u8,
+        expected_error: anyerror,
+    };
+    const test_input = [_]TestCases{
+        TestCases{ .input = "\"foo\" \"unterminated", .expected_error = error.UnterminatedString },
+    };
+
+    for (test_input) |test_case| {
+        std.debug.print("test case: {s}\n", .{test_case.input});
+        var inputTokens = Input{ .source = try std.fmt.allocPrint(std.heap.page_allocator, "{s}", .{test_case.input}) };
+        const tokens = lexer(&inputTokens, false);
+        try std.testing.expectError(test_case.expected_error, tokens);
+        std.debug.print("\n\n\n", .{});
     }
 }

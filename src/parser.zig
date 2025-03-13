@@ -104,24 +104,6 @@ pub fn printStatements(writer: anytype, statements: Statements) !void {
     }
 }
 
-pub fn parser(input: *Input, ignore_errors: bool) !Statements {
-    var context = std.ArrayList(u8).init(std.heap.page_allocator);
-    var statements = std.ArrayList(*Expression).init(std.heap.page_allocator);
-    defer context.deinit();
-    while (input.peek()) |c| {
-        if (c.token_type == .EOF) {
-            break;
-        }
-        const expression_tree = try expression(input, &context);
-        try statements.append(expression_tree);
-    }
-    const expressionArray: Statements = try statements.toOwnedSlice();
-    if (!ignore_errors) {
-        try errorCheckStatements(expressionArray);
-    }
-    return expressionArray;
-}
-
 pub fn errorCheckStatements(statements: Statements) !void {
     for (statements) |current| {
         try errorCheckExpression(current);
@@ -149,68 +131,40 @@ pub fn errorCheckExpression(expression_tree: *const Expression) !void {
     }
 }
 
-test "parserHappy" {
-    // array of array of strings
-    const TestCases = struct {
-        input: []const u8,
-        expected_output: []const u8,
-    };
-    const test_input = [_]TestCases{
-        TestCases{ .input = "1 * 2", .expected_output = "(* 1.0 2.0)\n" },
-        TestCases{ .input = "52 + 80 - 94", .expected_output = "(- (+ 52.0 80.0) 94.0)\n" },
-        TestCases{ .input = "78 - 93 * 79 - 32", .expected_output = "(- (- 78.0 (* 93.0 79.0)) 32.0)\n" },
-        TestCases{ .input = " \"hello\" + \"world\"", .expected_output = "(+ hello world)\n" },
-        TestCases{ .input = "(-30 + 65) * (46 * 46) / (92 + 29)", .expected_output = "(/ (* (group (+ (- 30.0) 65.0)) (group (* 46.0 46.0))) (group (+ 92.0 29.0)))\n" },
-        TestCases{ .input = "83 < 99 < 115", .expected_output = "(< (< 83.0 99.0) 115.0)\n" },
-        TestCases{ .input = "87 <= 179", .expected_output = "(<= 87.0 179.0)\n" },
-        TestCases{ .input = "print \"Hello, World!\";\n print 42;", .expected_output = "(print Hello, World!)\n(print 42.0)\n" },
-    };
-    for (test_input) |test_case| {
-        std.debug.print("test case: {s}\n", .{test_case.input});
-        var inputTokens = lexer.Input{ .source = try std.fmt.allocPrint(std.heap.page_allocator, "{s}", .{test_case.input}) };
-        const tokens = try lexer.lexer(&inputTokens, true);
-        var input = Input{ .source = tokens };
-        const expression_tree = try parser(&input, false);
-        var buffer: [1024]u8 = undefined;
-        var stream = std.io.fixedBufferStream(&buffer);
-        const writer = stream.writer();
-        try printStatements(writer, expression_tree);
-        try std.testing.expectEqualStrings(test_case.expected_output, stream.buffer[0..stream.pos]);
-        std.debug.print("\n\n\n", .{});
+pub fn parser(input: *Input, ignore_errors: bool) !Statements {
+    var context = std.ArrayList(u8).init(std.heap.page_allocator);
+    var statements = std.ArrayList(*Expression).init(std.heap.page_allocator);
+    defer context.deinit();
+    while (input.peek()) |c| {
+        if (c.token_type == .EOF) {
+            break;
+        }
+        const expression_tree = try expression(input, &context);
+        std.debug.print("expression tree: ", .{});
+        printExpression(std.io.getStdOut().writer(), expression_tree) catch @panic("error printing expression");
+        try statements.append(expression_tree);
+        std.debug.print("statements: ", .{});
+        printStatements(std.io.getStdOut().writer(), statements.items) catch @panic("error printing statements");
     }
-}
-
-test "parserUnhappy" {
-    const TestCases = struct {
-        input: []const u8,
-        expected_error: anyerror,
-    };
-    const test_input = [_]TestCases{
-        TestCases{ .input = "(72 +)", .expected_error = error.UnterminatedBinary },
-        TestCases{ .input = "(foo ", .expected_error = error.Unterminatedgroup },
-        TestCases{ .input = "+", .expected_error = error.UnterminatedBinary },
-    };
-
-    for (test_input) |test_case| {
-        std.debug.print("test case: {s}\n", .{test_case.input});
-        var inputTokens = lexer.Input{ .source = try std.fmt.allocPrint(std.heap.page_allocator, "{s}", .{test_case.input}) };
-        const tokens = try lexer.lexer(&inputTokens, true);
-        var input = Input{ .source = tokens };
-        const expression_tree = parser(&input, false);
-        try std.testing.expectError(test_case.expected_error, expression_tree);
-        std.debug.print("\n\n\n", .{});
+    const expressionArray: Statements = try statements.toOwnedSlice();
+    if (!ignore_errors) {
+        try errorCheckStatements(expressionArray);
     }
+    return expressionArray;
 }
 
 fn expression(input: *Input, context: *std.ArrayList(u8)) !*Expression {
     var expression_helper: ?*Expression = null;
     while (input.peek()) |c| {
+        std.debug.print("char: {}\n", .{c});
         if (c.token_type == .SEMICOLON) {
+            std.debug.print("semicolon\n", .{});
             _ = input.next();
             break;
         }
         expression_helper = expressionHelper(input, context, expression_helper);
         if (@import("builtin").is_test) {
+            std.debug.print("Tester:", .{});
             printExpression(std.io.getStdOut().writer(), expression_helper.?) catch @panic("error printing expression");
             std.debug.print("\n", .{});
         }
@@ -218,6 +172,23 @@ fn expression(input: *Input, context: *std.ArrayList(u8)) !*Expression {
     return expression_helper.?;
 }
 
+fn stringExpression(input: *Input, context: *std.ArrayList(u8)) !*Expression {
+    var expression_helper: ?*Expression = null;
+    while (input.peek()) |c| {
+        std.debug.print("char: {}\n", .{c});
+        if (c.token_type == .SEMICOLON) {
+            std.debug.print("semicolon\n", .{});
+            break;
+        }
+        expression_helper = expressionHelper(input, context, expression_helper);
+        if (@import("builtin").is_test) {
+            std.debug.print("Tester:", .{});
+            printExpression(std.io.getStdOut().writer(), expression_helper.?) catch @panic("error printing expression");
+            std.debug.print("\n", .{});
+        }
+    }
+    return expression_helper.?;
+}
 fn groupExpression(input: *Input, context: *std.ArrayList(u8)) *Expression {
     var expression_helper: ?*Expression = null;
     context.append('(') catch unreachable;
@@ -249,7 +220,7 @@ fn expressionHelper(input: *Input, context: *std.ArrayList(u8), previous: ?*Expr
             .RIGHT_PAREN => makeNewExpressionPointer(Expression{ .parseError = error.UnterminatedGroup }).?,
             .LEFT_BRACE => @panic("TODO"),
             .RIGHT_BRACE => @panic("TODO"),
-            .SEMICOLON => return previous,
+            .SEMICOLON => return null,
             .COMMA => @panic("TODO"),
             .PLUS => makeBinary(input, context, previous, .PLUS, plusOrMinusPercedence),
             .STAR => makeBinary(input, context, previous, .STAR, multipleOrDividePercedence),
@@ -290,7 +261,7 @@ fn expressionHelper(input: *Input, context: *std.ArrayList(u8), previous: ?*Expr
 }
 
 fn makePrint(input: *Input, context: *std.ArrayList(u8)) *Expression {
-    var right = expressionHelper(input, context, null) orelse makeNewExpressionPointer(Expression{ .parseError = error.UnterminatedBinary }).?;
+    var right = try stringExpression(input, context);
     if (right.* == .parseError) {
         right = makeNewExpressionPointer(Expression{ .parseError = error.UnterminatedBinary }).?;
     }
@@ -427,5 +398,57 @@ fn makeNewExpressionPointer(new_expression: ?Expression) ?*Expression {
         return new_expression_pointer;
     } else {
         return null;
+    }
+}
+test "parserHappy" {
+    // array of array of strings
+    const TestCases = struct {
+        input: []const u8,
+        expected_output: []const u8,
+    };
+    const test_input = [_]TestCases{
+        TestCases{ .input = "1 * 2", .expected_output = "(* 1.0 2.0)\n" },
+        TestCases{ .input = "52 + 80 - 94", .expected_output = "(- (+ 52.0 80.0) 94.0)\n" },
+        TestCases{ .input = "78 - 93 * 79 - 32", .expected_output = "(- (- 78.0 (* 93.0 79.0)) 32.0)\n" },
+        TestCases{ .input = " \"hello\" + \"world\"", .expected_output = "(+ hello world)\n" },
+        TestCases{ .input = "(-30 + 65) * (46 * 46) / (92 + 29)", .expected_output = "(/ (* (group (+ (- 30.0) 65.0)) (group (* 46.0 46.0))) (group (+ 92.0 29.0)))\n" },
+        TestCases{ .input = "83 < 99 < 115", .expected_output = "(< (< 83.0 99.0) 115.0)\n" },
+        TestCases{ .input = "87 <= 179", .expected_output = "(<= 87.0 179.0)\n" },
+        TestCases{ .input = "print \"Hello, World!\";\n print 42;", .expected_output = "(print Hello, World!)\n(print 42.0)\n" },
+    };
+    for (test_input) |test_case| {
+        std.debug.print("test case: {s}\n", .{test_case.input});
+        var inputTokens = lexer.Input{ .source = try std.fmt.allocPrint(std.heap.page_allocator, "{s}", .{test_case.input}) };
+        const tokens = try lexer.lexer(&inputTokens, true);
+        var input = Input{ .source = tokens };
+        const expression_tree = try parser(&input, false);
+        var buffer: [1024]u8 = undefined;
+        var stream = std.io.fixedBufferStream(&buffer);
+        const writer = stream.writer();
+        try printStatements(writer, expression_tree);
+        try std.testing.expectEqualStrings(test_case.expected_output, stream.buffer[0..stream.pos]);
+        std.debug.print("\n\n\n", .{});
+    }
+}
+
+test "parserUnhappy" {
+    const TestCases = struct {
+        input: []const u8,
+        expected_error: anyerror,
+    };
+    const test_input = [_]TestCases{
+        TestCases{ .input = "(72 +)", .expected_error = error.UnterminatedBinary },
+        TestCases{ .input = "(foo ", .expected_error = error.Unterminatedgroup },
+        TestCases{ .input = "+", .expected_error = error.UnterminatedBinary },
+    };
+
+    for (test_input) |test_case| {
+        std.debug.print("test case: {s}\n", .{test_case.input});
+        var inputTokens = lexer.Input{ .source = try std.fmt.allocPrint(std.heap.page_allocator, "{s}", .{test_case.input}) };
+        const tokens = try lexer.lexer(&inputTokens, true);
+        var input = Input{ .source = tokens };
+        const expression_tree = parser(&input, false);
+        try std.testing.expectError(test_case.expected_error, expression_tree);
+        std.debug.print("\n\n\n", .{});
     }
 }

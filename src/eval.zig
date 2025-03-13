@@ -76,7 +76,7 @@ test "evalHappy" {
         var buffer: [1024]u8 = undefined;
         var stream = std.io.fixedBufferStream(&buffer);
         const writer = stream.writer();
-        const value = try evalulate(&expression_tree);
+        const value = try evalulate(&expression_tree, true);
         try printValues(writer, &value);
         try std.testing.expectEqualStrings(test_case.expected_output, stream.buffer[0..stream.pos]);
         std.debug.print("\n\n\n", .{});

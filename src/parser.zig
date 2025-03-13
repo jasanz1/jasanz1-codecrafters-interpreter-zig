@@ -123,10 +123,14 @@ pub fn errorCheckExpression(expression_tree: *const Expression) !void {
             try errorCheckExpression(grouping);
         },
         .parseError => |parseError| {
+            std.debug.print("parseError: {}\n", .{parseError});
             return parseError;
         },
+        .print => |print| {
+            try errorCheckExpression(print);
+        },
         else => {
-            return;
+            @panic("not implemented");
         },
     }
 }
@@ -153,7 +157,6 @@ fn expression(input: *Input, context: *std.ArrayList(u8)) !*Expression {
     var expression_helper: ?*Expression = null;
     while (input.peek()) |c| {
         if (c.token_type == .SEMICOLON) {
-            std.debug.print("semicolon\n", .{});
             _ = input.next();
             break;
         }
@@ -171,7 +174,6 @@ fn printExpression(input: *Input, context: *std.ArrayList(u8)) !*Expression {
     var expression_helper: ?*Expression = null;
     while (input.peek()) |c| {
         if (c.token_type == .SEMICOLON) {
-            std.debug.print("semicolon\n", .{});
             break;
         }
         expression_helper = expressionHelper(input, context, expression_helper);

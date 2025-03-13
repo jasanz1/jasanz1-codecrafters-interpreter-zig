@@ -282,6 +282,10 @@ test "evalHappy" {
         TestCases{ .input = "print \"Hello, World!\"", .expected_output = "Hello, World!" },
         TestCases{ .input = "print \"quz\" + \"world\" + \"hello\";", .expected_output = "quzworldhello" },
         TestCases{ .input = "print false;", .expected_output = "false" },
+        TestCases{
+            .input = " // This program prints the result of a comparison operation\n // It also tests multi-line strings and non-ASCII characters\n print false != true;\n \n print \"56\n 85\n 79\n \";\n \n print \"There should be an empty line above this.\";\n \n print \"(\" + \"\" + \")\";\n \n print \"non-ascii: ॐ\";",
+            .expected_output = "",
+        },
     };
     for (test_input) |test_case| {
         std.debug.print("test case: {s}\n", .{test_case.input});

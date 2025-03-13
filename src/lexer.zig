@@ -235,7 +235,7 @@ fn readString(source: *Input) !Token {
         if (c == '"') {
             _ = source.next();
             break;
-        } else if (c == '\n' or c == '\r') {
+        } else if (c == '\r') {
             source.line_number += 1;
             return Token{ .line_number = source.line_number, .token_type = TokenType.UNTERMINATED_STRING, .lexeme = try std.fmt.allocPrint(std.heap.page_allocator, "\"{s}\"", .{string.items}), .literal = null };
         } else {

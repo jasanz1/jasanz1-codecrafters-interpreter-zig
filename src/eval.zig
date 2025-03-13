@@ -44,7 +44,7 @@ pub fn printValue(writer: anytype, value: *const Value) !void {
 
 pub fn printValues(writer: anytype, values: *const []Value) !void {
     for (values.*) |current| {
-        printValue(writer, &current) catch return;
+        try printValue(writer, &current);
     }
 }
 

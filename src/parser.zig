@@ -45,18 +45,18 @@ pub const Expression = union(enum) {
     parseError: anyerror,
 };
 
-pub fn printExpression(writer: anytype, expressionTree: *Expression) !void {
+pub fn printSingleExpression(writer: anytype, expressionTree: *Expression) !void {
     switch (expressionTree.*) {
         .binary => |*binary| {
             try writer.print("({s} ", .{binary.operator.stringify()});
-            try printExpression(writer, binary.left);
+            try printSingleExpression(writer, binary.left);
             try writer.print(" ", .{});
-            try printExpression(writer, binary.right);
+            try printSingleExpression(writer, binary.right);
             try writer.print(")", .{});
         },
         .unary => |unary| {
             try writer.print("({s} ", .{unary.operator.stringify()});
-            try printExpression(writer, unary.right);
+            try printSingleExpression(writer, unary.right);
             try writer.print(")", .{});
         },
         .literal => |literal| {
@@ -80,12 +80,12 @@ pub fn printExpression(writer: anytype, expressionTree: *Expression) !void {
         },
         .print => |print| {
             try writer.print("(print ", .{});
-            try printExpression(writer, print);
+            try printSingleExpression(writer, print);
             try writer.print(")", .{});
         },
         .grouping => |grouping| {
             try writer.print("(group ", .{});
-            try printExpression(writer, grouping);
+            try printSingleExpression(writer, grouping);
             try writer.print(")", .{});
         },
         .identifier => |identifier| {
@@ -99,7 +99,7 @@ pub fn printExpression(writer: anytype, expressionTree: *Expression) !void {
 }
 pub fn printStatements(writer: anytype, statements: Statements) !void {
     for (statements) |current| {
-        try printExpression(writer, current);
+        try printSingleExpression(writer, current);
         writer.writeAll("\n") catch unreachable;
     }
 }
@@ -160,7 +160,7 @@ fn expression(input: *Input, context: *std.ArrayList(u8)) !*Expression {
         expression_helper = expressionHelper(input, context, expression_helper);
         if (@import("builtin").is_test) {
             std.debug.print("Tester:", .{});
-            printExpression(std.io.getStdOut().writer(), expression_helper.?) catch @panic("error printing expression");
+            printSingleExpression(std.io.getStdOut().writer(), expression_helper.?) catch @panic("error printing expression");
             std.debug.print("\n", .{});
         }
     }
@@ -177,7 +177,7 @@ fn printExpression(input: *Input, context: *std.ArrayList(u8)) !*Expression {
         expression_helper = expressionHelper(input, context, expression_helper);
         if (@import("builtin").is_test) {
             std.debug.print("Tester:", .{});
-            printExpression(std.io.getStdOut().writer(), expression_helper.?) catch @panic("error printing expression");
+            printSingleExpression(std.io.getStdOut().writer(), expression_helper.?) catch @panic("error printing expression");
             std.debug.print("\n", .{});
         }
     }
@@ -196,7 +196,7 @@ fn groupExpression(input: *Input, context: *std.ArrayList(u8)) *Expression {
         }
         expression_helper = expressionHelper(input, context, expression_helper);
         if (@import("builtin").is_test) {
-            printExpression(std.io.getStdOut().writer(), expression_helper.?) catch @panic("error printing expression");
+            printSingleExpression(std.io.getStdOut().writer(), expression_helper.?) catch @panic("error printing expression");
             std.debug.print("\n", .{});
         }
     }
@@ -258,7 +258,7 @@ fn expressionHelper(input: *Input, context: *std.ArrayList(u8), previous: ?*Expr
 }
 
 fn makePrint(input: *Input, context: *std.ArrayList(u8)) *Expression {
-    var right = try printExpression(input, context);
+    var right = try printSingleExpression(input, context);
     if (right.* == .parseError) {
         right = makeNewExpressionPointer(Expression{ .parseError = error.UnterminatedBinary }).?;
     }

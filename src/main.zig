@@ -46,7 +46,7 @@ pub fn main() !u8 {
 
     const value = eval.evalulate(&ast, std.mem.eql(u8, command, "evaluate")) catch return 70;
     if (std.mem.eql(u8, command, "evaluate")) {
-        eval.errorCheck(value) catch return 70;
+        eval.valuesErrorCheck(value) catch return 70;
         try eval.printValues(std.io.getStdOut().writer(), &value);
         return 0;
     }

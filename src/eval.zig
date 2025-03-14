@@ -49,12 +49,15 @@ pub fn printValues(writer: anytype, values: *const []Value) !void {
     }
 }
 
-pub fn errorCheck(value: []Value) !void {
-    for (value) |current| {
-        switch (current) {
-            .ERROR => |err| return err,
-            else => {},
-        }
+pub fn valueErrorCheck(value: Value) !void {
+    switch (value) {
+        .ERROR => |err| return err,
+        else => {},
+    }
+}
+pub fn valuesErrorCheck(values: []Value) !void {
+    for (values) |current| {
+        try valueErrorCheck(current);
     }
 }
 pub fn evalulate(ast: *Statements, ignore_errors: bool) ![]Value {
@@ -64,7 +67,7 @@ pub fn evalulate(ast: *Statements, ignore_errors: bool) ![]Value {
         std.debug.print("\n", .{});
         const currentValue = try eval(current);
         if (!ignore_errors) {
-            try errorCheck(currentValue);
+            try valueErrorCheck(currentValue);
         }
         try value.append(currentValue);
     }

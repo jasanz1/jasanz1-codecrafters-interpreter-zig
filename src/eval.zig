@@ -95,6 +95,9 @@ fn eval(ast: *const Expression) evalErrors!Value {
 
 fn evalPrint(print: *const Expression) !Value {
     const value = try eval(print);
+    if (value == .ERROR) {
+        return value;
+    }
     try printValue(std.io.getStdOut().writer(), &value);
     try std.io.getStdOut().writer().print("\n", .{});
     return value;
@@ -317,6 +320,34 @@ test "evalHappy" {
         std.debug.print("value:\n", .{});
         try printValues(writer, &value);
         try std.testing.expectEqualStrings(test_case.expected_output, stream.buffer[0..stream.pos]);
+        std.debug.print("\n\n\n", .{});
+    }
+}
+test "parserUnhappy" {
+    const TestCases = struct {
+        input: []const u8,
+        expected_error: anyerror,
+    };
+    const test_input = [_]TestCases{
+        TestCases{
+            .input = " // This program tests that the * operator is only supported when both operands are numbers\n print \"63\" + \"quz\";\n print false * (37 + 33);\n",
+            .expected_error = error.operandNotNumber,
+        },
+    };
+
+    for (test_input) |test_case| {
+        std.debug.print("test case:\n{s}\nEOF\n\n", .{test_case.input});
+        var inputTokens = lexer.Input{ .source = try std.fmt.allocPrint(std.heap.page_allocator, "{s}", .{test_case.input}) };
+        const tokens = try lexer.lexer(&inputTokens, true);
+        var input = parser.Input{ .source = tokens };
+        var expression_tree = try parser.parser(&input, true);
+        var buffer: [1024]u8 = undefined;
+        var stream = std.io.fixedBufferStream(&buffer);
+        const writer = stream.writer();
+        const value = try evalulate(&expression_tree, true);
+        std.debug.print("value:\n", .{});
+        try printValues(writer, &value);
+        try std.testing.expectError(test_case.expected_error, value);
         std.debug.print("\n\n\n", .{});
     }
 }

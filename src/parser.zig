@@ -347,8 +347,11 @@ fn makeBinary(input: *Input, context: *std.ArrayList(u8), previous: ?*Expression
     return new_expression;
 }
 const precedence = enum { tooLow, correct, tooHigh };
-fn plusOrMinusPercedence(_: ?*Expression) precedence {
-    return .correct;
+fn plusOrMinusPercedence(prev: ?*Expression) precedence {
+    if (prev.?.binary.operator == .MINUS or prev.?.binary.operator == .PLUS or prev.?.binary.operator == .STAR or prev.?.binary.operator == .SLASH) {
+        return .correct;
+    }
+    return .tooHigh;
 }
 
 fn multipleOrDividePercedence(prev: ?*Expression) precedence {

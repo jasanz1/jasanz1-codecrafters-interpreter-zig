@@ -294,10 +294,14 @@ test "evalHappy" {
             .input = " // This program tests that statements are executed even if they don't have any side effects\n// It also tests complex arithmetic expressions and string concatenation\n(90 + 64 - 87) > (95 - 90) * 2;\nprint !true;\n\"hello\" + \"quz\" + \"foo\" + \"world\" == \"helloquzfooworld\";\nprint !true;",
             .expected_output = "truefalsetruefalse",
         },
+        TestCases{
+            .input = "65 - 27 >= -81 * 2 / 81 + 23;\nfalse == false;\n(\"quz\" == \"hello\") == (\"world\" != \"baz\");\nprint false;",
+            .expected_output = "truetruefalsefalse",
+        },
     };
 
     for (test_input) |test_case| {
-        std.debug.print("test case:\n {s}\nEOF\n\n", .{test_case.input});
+        std.debug.print("test case:\n{s}\nEOF\n\n", .{test_case.input});
         var inputTokens = lexer.Input{ .source = try std.fmt.allocPrint(std.heap.page_allocator, "{s}", .{test_case.input}) };
         const tokens = try lexer.lexer(&inputTokens, true);
         var input = parser.Input{ .source = tokens };

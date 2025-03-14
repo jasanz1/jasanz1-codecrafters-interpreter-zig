@@ -151,7 +151,7 @@ pub fn parser(input: *Input, ignore_errors: bool) !Statements {
         if (c.token_type == .EOF) {
             break;
         }
-        const expression_tree = try expression(input, &context);
+        const expression_tree = try expression(input, &context, false);
         try statements.append(expression_tree);
         std.debug.print("statements: {any}\n", .{statements.items});
     }
@@ -162,12 +162,14 @@ pub fn parser(input: *Input, ignore_errors: bool) !Statements {
     return expressionArray;
 }
 
-fn expression(input: *Input, context: *std.ArrayList(u8)) !*Expression {
+fn expression(input: *Input, context: *std.ArrayList(u8), keepSemicolon: bool) !*Expression {
     var expression_helper: ?*Expression = null;
     while (input.peek()) |c| {
         if (c.token_type == .SEMICOLON) {
             std.debug.print("SEMICOLON\n", .{});
-            _ = input.next();
+            if (!keepSemicolon) {
+                _ = input.next();
+            }
             break;
         }
         expression_helper = expressionHelper(input, context, expression_helper);
@@ -180,24 +182,6 @@ fn expression(input: *Input, context: *std.ArrayList(u8)) !*Expression {
     return expression_helper.?;
 }
 
-fn subExpression(input: *Input, context: *std.ArrayList(u8)) !*Expression {
-    var expression_helper: ?*Expression = null;
-    while (input.peek()) |c| {
-        if (c.token_type == .SEMICOLON) {
-            break;
-        }
-        expression_helper = expressionHelper(input, context, expression_helper);
-        if (@import("builtin").is_test) {
-            std.debug.print("print:", .{});
-            printSingleExpression(std.io.getStdOut().writer(), expression_helper.?) catch @panic("error printing expression");
-            std.debug.print("\n", .{});
-        }
-    }
-    if (expression_helper) |_| {} else {
-        return makeNewExpressionPointer(Expression{ .parseError = error.printError }).?;
-    }
-    return expression_helper.?;
-}
 fn groupExpression(input: *Input, context: *std.ArrayList(u8)) *Expression {
     var expression_helper: ?*Expression = null;
     context.append('(') catch unreachable;
@@ -279,7 +263,7 @@ fn makeVariable(input: *Input, context: *std.ArrayList(u8)) *Expression {
         return makeNewExpressionPointer(Expression{ .parseError = error.UnexpectedToken }).?;
     }
 
-    const value = try subExpression(input, context);
+    const value = try expression(input, context, true);
     if (value.* == .parseError and value.*.parseError != error.unexpectedEOF) {
         return makeNewExpressionPointer(Expression{ .parseError = error.UnexpectedToken }).?;
     }
@@ -290,7 +274,7 @@ fn makeVariable(input: *Input, context: *std.ArrayList(u8)) *Expression {
 }
 
 fn makePrint(input: *Input, context: *std.ArrayList(u8)) *Expression {
-    var right = try subExpression(input, context);
+    var right = try expression(input, context, true);
     if (right.* == .parseError) {
         right = makeNewExpressionPointer(Expression{ .parseError = error.UnterminatedBinary }).?;
     }

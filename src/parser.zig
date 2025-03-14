@@ -39,6 +39,7 @@ pub const Expression = union(enum) {
     binary: struct { left: *Expression, operator: Operator, right: *Expression },
     unary: struct { operator: Operator, right: *Expression },
     literal: union(enum) { NUMBER: f64, STRING: []const u8, NIL, TRUE, FALSE },
+    variable: struct { name: []const u8, value: *Expression },
     grouping: *Expression,
     print: *Expression,
     identifier: []const u8,
@@ -91,6 +92,11 @@ pub fn printSingleExpression(writer: anytype, expressionTree: *Expression) !void
         .identifier => |identifier| {
             try writer.print("{s}", .{identifier});
         },
+        .variable => |variable| {
+            try writer.print("({s} = ", .{variable.name});
+            try printSingleExpression(writer, variable.value);
+            try writer.print(")", .{});
+        },
         .parseError => |parseError| {
             try std.io.getStdErr().writer().print("parseError: {}", .{parseError});
             return;
@@ -128,6 +134,9 @@ pub fn errorCheckExpression(expression_tree: *const Expression) !void {
         },
         .print => |print| {
             try errorCheckExpression(print);
+        },
+        .variable => |variable| {
+            try errorCheckExpression(variable.value);
         },
         .literal => return,
         .identifier => return,
@@ -244,7 +253,7 @@ fn expressionHelper(input: *Input, context: *std.ArrayList(u8), previous: ?*Expr
             .RETURN => @panic("TODO"),
             .SUPER => @panic("TODO"),
             .THIS => @panic("TODO"),
-            .VAR => @panic("TODO"),
+            .VAR => makeVariable(input, context),
             .WHILE => @panic("TODO"),
             .DOT => @panic("TODO"),
             .INVALID_TOKEN => @panic("TODO"),
@@ -257,6 +266,22 @@ fn expressionHelper(input: *Input, context: *std.ArrayList(u8), previous: ?*Expr
     }
 
     return null;
+}
+fn makeVariable(input: *Input, context: *std.ArrayList(u8)) *Expression {
+    const name = input.next() orelse return handleEOF(context, null);
+    if (name.token_type != .IDENTIFIER) {
+        return makeNewExpressionPointer(Expression{ .parseError = error.UnexpectedToken }).?;
+    }
+    const equal = input.next() orelse return handleEOF(context, null);
+    if (equal.token_type != .EQUAL) {
+        return makeNewExpressionPointer(Expression{ .parseError = error.UnexpectedToken }).?;
+    }
+
+    const value = expressionHelper(input, context, null).?;
+    if (value.* == .parseError and value.*.parseError != error.unexpectedEOF) {
+        return makeNewExpressionPointer(Expression{ .parseError = error.UnexpectedToken }).?;
+    }
+    return makeNewExpressionPointer(Expression{ .variable = .{ .name = name.lexeme, .value = value } }).?;
 }
 
 fn makePrint(input: *Input, context: *std.ArrayList(u8)) *Expression {
@@ -346,7 +371,12 @@ fn makeBinary(input: *Input, context: *std.ArrayList(u8), previous: ?*Expression
     new_expression = rotateIfPrecedenceMismatch(previous, new_expression, comparefunc);
     return new_expression;
 }
-const precedence = enum { tooLow, correct, tooHigh };
+const precedence = enum {
+    tooLow,
+    correct,
+    tooHigh,
+};
+
 fn plusOrMinusPercedence(prev: ?*Expression) precedence {
     if (prev.?.binary.operator == .MINUS or prev.?.binary.operator == .PLUS or prev.?.binary.operator == .STAR or prev.?.binary.operator == .SLASH) {
         return .correct;

@@ -4,7 +4,7 @@ const Statements = @import("parser.zig").Statements;
 const Operator = @import("parser.zig").Operator;
 const lexer = @import("lexer.zig");
 const parser = @import("parser.zig");
-const printExpression = @import("parser.zig").printSingleExpression;
+const printSingleExpression = @import("parser.zig").printSingleExpression;
 const evalErrors = error{
     OutOfMemory,
     NoSpaceLeft,
@@ -32,6 +32,12 @@ const Value = union(enum) {
     ERROR: anyerror,
 };
 
+const Variable = struct {
+    name: []const u8,
+    value: Value,
+};
+
+var variable_map = std.StringHashMap(Variable).init(std.heap.page_allocator);
 pub fn printValue(writer: anytype, value: *const Value) !void {
     switch (value.*) {
         .STRING => |string| try writer.print("{s}", .{string}),
@@ -55,11 +61,13 @@ pub fn valueErrorCheck(value: Value) !void {
         else => {},
     }
 }
+
 pub fn valuesErrorCheck(values: []Value) !void {
     for (values) |current| {
         try valueErrorCheck(current);
     }
 }
+
 pub fn evalulate(ast: *Statements, ignore_errors: bool) ![]Value {
     var value = std.ArrayList(Value).init(std.heap.page_allocator);
     defer value.deinit();
@@ -75,6 +83,7 @@ pub fn evalulate(ast: *Statements, ignore_errors: bool) ![]Value {
     }
     return valueArray;
 }
+
 fn eval(ast: *const Expression) evalErrors!Value {
     return switch (ast.*) {
         .binary => try evalBinary(ast),
@@ -86,14 +95,28 @@ fn eval(ast: *const Expression) evalErrors!Value {
             .TRUE => Value{ .TRUE = {} },
             .FALSE => Value{ .FALSE = {} },
         },
-        .print => |print| try evalPrint(print),
-        .grouping => |grouping| eval(grouping),
-        .identifier => @panic("todo"),
+        .print => try evalPrint(ast),
+        .grouping => try eval(ast.grouping),
+        .variable => try evalVariable(ast),
+        .identifier => switchReturn: {
+            const variableValue = variable_map.get(ast.identifier) orelse return Value{ .ERROR = error.VariableNotFound };
+            break :switchReturn variableValue.value;
+        },
         .parseError => @panic("todo"),
     };
 }
 
-fn evalPrint(print: *const Expression) !Value {
+fn evalVariable(value: *const Expression) !Value {
+    const valueValue = try eval(value.variable.value);
+    if (valueValue == .ERROR) {
+        return valueValue;
+    }
+    variable_map.put(value.variable.name, .{ .name = value.variable.name, .value = valueValue }) catch unreachable;
+    return valueValue;
+}
+
+fn evalPrint(printExpression: *const Expression) !Value {
+    const print = printExpression.print;
     const value = try eval(print);
     if (value == .ERROR) {
         return value;
@@ -304,6 +327,10 @@ test "evalHappy" {
         TestCases{
             .input = "65 - 27 >= -81 * 2 / 81 + 23;\nfalse == false;\n(\"quz\" == \"hello\") == (\"world\" != \"baz\");\nprint false;",
             .expected_output = "truetruefalsefalse",
+        },
+        TestCases{
+            .input = "var a = \"foo\";\nprint a;",
+            .expected_output = "foofoo",
         },
     };
 

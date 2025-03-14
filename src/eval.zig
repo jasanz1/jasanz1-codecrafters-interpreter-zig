@@ -4,6 +4,7 @@ const Statements = @import("parser.zig").Statements;
 const Operator = @import("parser.zig").Operator;
 const lexer = @import("lexer.zig");
 const parser = @import("parser.zig");
+const printExpression = @import("parser.zig").printSingleExpression;
 const evalErrors = error{
     OutOfMemory,
     NoSpaceLeft,
@@ -60,7 +61,9 @@ pub fn evalulate(ast: *Statements, ignore_errors: bool) ![]Value {
     var value = std.ArrayList(Value).init(std.heap.page_allocator);
     defer value.deinit();
     for (ast.*) |current| {
-        try value.append(try eval(current));
+        std.debug.print("\n", .{});
+        const currentValue = try eval(current);
+        try value.append(currentValue);
     }
     const valueArray = try value.toOwnedSlice();
     if (!ignore_errors) {
@@ -96,6 +99,7 @@ fn evalPrint(print: *const Expression) !Value {
 fn evalBinary(binary: *const Expression) !Value {
     const left = try eval(binary.binary.left);
     const right = try eval(binary.binary.right);
+
     const value = switch (binary.binary.operator) {
         .PLUS => try evalPlus(left, right),
         .MINUS => try evalMinus(left, right),
@@ -284,11 +288,16 @@ test "evalHappy" {
         TestCases{ .input = "print false;", .expected_output = "false" },
         TestCases{
             .input = " // This program prints the result of a comparison operation\n // It also tests multi-line strings and non-ASCII characters\n print false != true;\n \n print \"56\n 85\n 79\n \";\n \n print \"There should be an empty line above this.\";\n \n print \"(\" + \"\" + \")\";\n \n print \"non-ascii: ॐ\";",
-            .expected_output = "",
+            .expected_output = "true56\n 85\n 79\n There should be an empty line above this.()non-ascii: ॐ",
+        },
+        TestCases{
+            .input = " // This program tests that statements are executed even if they don't have any side effects\n// It also tests complex arithmetic expressions and string concatenation\n(90 + 64 - 87) > (95 - 90) * 2;\nprint !true;\n\"hello\" + \"quz\" + \"foo\" + \"world\" == \"helloquzfooworld\";\nprint !true;",
+            .expected_output = "truefalsetruefalse",
         },
     };
+
     for (test_input) |test_case| {
-        std.debug.print("test case: {s}\n", .{test_case.input});
+        std.debug.print("test case:\n {s}\nEOF\n\n", .{test_case.input});
         var inputTokens = lexer.Input{ .source = try std.fmt.allocPrint(std.heap.page_allocator, "{s}", .{test_case.input}) };
         const tokens = try lexer.lexer(&inputTokens, true);
         var input = parser.Input{ .source = tokens };
@@ -297,6 +306,7 @@ test "evalHappy" {
         var stream = std.io.fixedBufferStream(&buffer);
         const writer = stream.writer();
         const value = try evalulate(&expression_tree, true);
+        std.debug.print("value:\n", .{});
         try printValues(writer, &value);
         try std.testing.expectEqualStrings(test_case.expected_output, stream.buffer[0..stream.pos]);
         std.debug.print("\n\n\n", .{});

@@ -197,6 +197,7 @@ fn groupExpression(input: *Input, context: *std.ArrayList(u8)) *Expression {
         }
         expression_helper = expressionHelper(input, context, expression_helper);
         if (@import("builtin").is_test) {
+            std.debug.print("Tester:", .{});
             printSingleExpression(std.io.getStdOut().writer(), expression_helper.?) catch @panic("error printing expression");
             std.debug.print("\n", .{});
         }
@@ -336,6 +337,7 @@ fn makeBinary(input: *Input, context: *std.ArrayList(u8), previous: ?*Expression
     if (right.* == .parseError) {
         right = makeNewExpressionPointer(Expression{ .parseError = error.UnterminatedBinary }).?;
     }
+
     var new_expression = makeNewExpressionPointer(Expression{ .binary = .{
         .left = previous orelse makeNewExpressionPointer(Expression{ .parseError = error.UnterminatedBinary }).?,
         .operator = operator,
@@ -344,26 +346,38 @@ fn makeBinary(input: *Input, context: *std.ArrayList(u8), previous: ?*Expression
     new_expression = rotateIfPrecedenceMismatch(previous, new_expression, comparefunc);
     return new_expression;
 }
-
-fn plusOrMinusPercedence(_: ?*Expression) bool {
-    return false;
+const precedence = enum { tooLow, correct, tooHigh };
+fn plusOrMinusPercedence(_: ?*Expression) precedence {
+    return .correct;
 }
 
-fn multipleOrDividePercedence(prev: ?*Expression) bool {
-    return prev.?.binary.operator == .MINUS or prev.?.binary.operator == .PLUS;
+fn multipleOrDividePercedence(prev: ?*Expression) precedence {
+    if (prev.?.binary.operator == .MINUS or prev.?.binary.operator == .PLUS) {
+        return .tooLow;
+    } else if (prev.?.binary.operator == .STAR or prev.?.binary.operator == .SLASH) {
+        return .correct;
+    }
+
+    return .tooHigh;
 }
 
-fn comparePercedence(prev: ?*Expression) bool {
-    return prev.?.binary.operator == .MINUS or prev.?.binary.operator == .PLUS or prev.?.binary.operator == .SLASH or prev.?.binary.operator == .STAR;
+fn comparePercedence(_: ?*Expression) precedence {
+    return .correct;
 }
 
-fn rotateIfPrecedenceMismatch(previous: ?*Expression, new_expression: *Expression, comptime precedence: anytype) *Expression {
+fn rotateIfPrecedenceMismatch(previous: ?*Expression, to_sort_expression: *Expression, comptime precedenceFn: anytype) *Expression {
+    var new_expression = to_sort_expression;
     if (previous) |prev| {
-        if (prev.* == .binary and @call(.auto, precedence, .{prev})) {
-            const temp = prev.binary.right;
-            prev.binary.right = new_expression;
-            new_expression.*.binary.left = temp;
-            return prev;
+        if (prev.* == .binary) {
+            switch (@call(.auto, precedenceFn, .{prev})) {
+                .correct => {},
+                .tooHigh, .tooLow => {
+                    const temp = prev.binary.right;
+                    prev.binary.right = new_expression;
+                    new_expression.*.binary.left = temp;
+                    new_expression = prev;
+                },
+            }
         }
     } else {
         return makeNewExpressionPointer(Expression{ .parseError = error.UnterminatedBinary }).?;

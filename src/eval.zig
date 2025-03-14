@@ -111,6 +111,9 @@ fn evalVariable(value: *const Expression) !Value {
     if (valueValue == .ERROR) {
         return valueValue;
     }
+    std.debug.print("variable: {s} = ", .{value.variable.name});
+    printValue(std.io.getStdOut().writer(), &valueValue) catch unreachable;
+    std.debug.print("\n", .{});
     variable_map.put(value.variable.name, .{ .name = value.variable.name, .value = valueValue }) catch unreachable;
     return valueValue;
 }
@@ -332,8 +335,11 @@ test "evalHappy" {
             .input = "var a = \"foo\";\nprint a;",
             .expected_output = "foofoo",
         },
+        TestCases{
+            .input = " // This program assigns the result of an arithmetic expression to a variable\n // Then it prints the value of the variable\n var world = (8 * (36 + 36)) / 4 + 36;\n print world;",
+            .expected_output = "180180",
+        },
     };
-
     for (test_input) |test_case| {
         std.debug.print("test case:\n{s}\nEOF\n\n", .{test_case.input});
         var inputTokens = lexer.Input{ .source = try std.fmt.allocPrint(std.heap.page_allocator, "{s}", .{test_case.input}) };

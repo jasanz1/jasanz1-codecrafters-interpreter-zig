@@ -153,6 +153,7 @@ pub fn parser(input: *Input, ignore_errors: bool) !Statements {
         }
         const expression_tree = try expression(input, &context);
         try statements.append(expression_tree);
+        std.debug.print("statements: {any}\n", .{statements.items});
     }
     const expressionArray: Statements = try statements.toOwnedSlice();
     if (!ignore_errors) {
@@ -165,12 +166,13 @@ fn expression(input: *Input, context: *std.ArrayList(u8)) !*Expression {
     var expression_helper: ?*Expression = null;
     while (input.peek()) |c| {
         if (c.token_type == .SEMICOLON) {
+            std.debug.print("SEMICOLON\n", .{});
             _ = input.next();
             break;
         }
         expression_helper = expressionHelper(input, context, expression_helper);
         if (@import("builtin").is_test) {
-            std.debug.print("Tester:", .{});
+            std.debug.print("Expression:", .{});
             printSingleExpression(std.io.getStdOut().writer(), expression_helper.?) catch @panic("error printing expression");
             std.debug.print("\n", .{});
         }
@@ -178,7 +180,7 @@ fn expression(input: *Input, context: *std.ArrayList(u8)) !*Expression {
     return expression_helper.?;
 }
 
-fn printExpression(input: *Input, context: *std.ArrayList(u8)) !*Expression {
+fn subExpression(input: *Input, context: *std.ArrayList(u8)) !*Expression {
     var expression_helper: ?*Expression = null;
     while (input.peek()) |c| {
         if (c.token_type == .SEMICOLON) {
@@ -186,7 +188,7 @@ fn printExpression(input: *Input, context: *std.ArrayList(u8)) !*Expression {
         }
         expression_helper = expressionHelper(input, context, expression_helper);
         if (@import("builtin").is_test) {
-            std.debug.print("Tester:", .{});
+            std.debug.print("print:", .{});
             printSingleExpression(std.io.getStdOut().writer(), expression_helper.?) catch @panic("error printing expression");
             std.debug.print("\n", .{});
         }
@@ -277,15 +279,18 @@ fn makeVariable(input: *Input, context: *std.ArrayList(u8)) *Expression {
         return makeNewExpressionPointer(Expression{ .parseError = error.UnexpectedToken }).?;
     }
 
-    const value = expressionHelper(input, context, null).?;
+    const value = try subExpression(input, context);
     if (value.* == .parseError and value.*.parseError != error.unexpectedEOF) {
         return makeNewExpressionPointer(Expression{ .parseError = error.UnexpectedToken }).?;
     }
+    std.debug.print("variable: {s} = ", .{name.lexeme});
+    printSingleExpression(std.io.getStdOut().writer(), value) catch unreachable;
+    std.debug.print("\n", .{});
     return makeNewExpressionPointer(Expression{ .variable = .{ .name = name.lexeme, .value = value } }).?;
 }
 
 fn makePrint(input: *Input, context: *std.ArrayList(u8)) *Expression {
-    var right = try printExpression(input, context);
+    var right = try subExpression(input, context);
     if (right.* == .parseError) {
         right = makeNewExpressionPointer(Expression{ .parseError = error.UnterminatedBinary }).?;
     }

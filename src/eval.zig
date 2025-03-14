@@ -63,12 +63,12 @@ pub fn evalulate(ast: *Statements, ignore_errors: bool) ![]Value {
     for (ast.*) |current| {
         std.debug.print("\n", .{});
         const currentValue = try eval(current);
+        if (!ignore_errors) {
+            try errorCheck(currentValue);
+        }
         try value.append(currentValue);
     }
     const valueArray = try value.toOwnedSlice();
-    if (!ignore_errors) {
-        try errorCheck(valueArray);
-    }
     return valueArray;
 }
 fn eval(ast: *const Expression) evalErrors!Value {

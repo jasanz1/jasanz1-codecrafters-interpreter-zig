@@ -340,6 +340,10 @@ test "evalHappy" {
             .input = "// This program tests that variables are initialized to the correct value\n var baz = 10;\n print baz;",
             .expected_output = "1010",
         },
+        TestCases{
+            .input = " // This program prints the result of an arithmetic expression \n print (80 * 2 + 77 * 2) / (2);",
+            .expected_output = "157",
+        },
     };
     for (test_input) |test_case| {
         std.debug.print("test case:\n{s}\nEOF\n\n", .{test_case.input});

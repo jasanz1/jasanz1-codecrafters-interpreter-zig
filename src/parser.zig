@@ -152,7 +152,7 @@ pub fn parser(input: *Input, ignore_errors: bool) !Statements {
             break;
         }
         const expression_tree = try expression(input, &context, false);
-        try statements.append(expression_tree);
+        try statements.append(expression_tree.?);
         std.debug.print("statements: {any}\n", .{statements.items});
     }
     const expressionArray: Statements = try statements.toOwnedSlice();
@@ -162,7 +162,7 @@ pub fn parser(input: *Input, ignore_errors: bool) !Statements {
     return expressionArray;
 }
 
-fn expression(input: *Input, context: *std.ArrayList(u8), keepSemicolon: bool) !*Expression {
+fn expression(input: *Input, context: *std.ArrayList(u8), keepSemicolon: bool) !?*Expression {
     var expression_helper: ?*Expression = null;
     while (input.peek()) |c| {
         if (c.token_type == .SEMICOLON) {
@@ -178,7 +178,7 @@ fn expression(input: *Input, context: *std.ArrayList(u8), keepSemicolon: bool) !
             std.debug.print("\n", .{});
         }
     }
-    return expression_helper.?;
+    return expression_helper;
 }
 
 fn groupExpression(input: *Input, context: *std.ArrayList(u8)) *Expression {
@@ -262,7 +262,7 @@ fn makeVariable(input: *Input, context: *std.ArrayList(u8)) *Expression {
         return makeNewExpressionPointer(Expression{ .parseError = error.UnexpectedToken }).?;
     }
 
-    const value = try expression(input, context, true);
+    const value = (try expression(input, context, true)).?;
     if (value.* == .parseError and value.*.parseError != error.unexpectedEOF) {
         return makeNewExpressionPointer(Expression{ .parseError = error.UnexpectedToken }).?;
     }
@@ -271,10 +271,10 @@ fn makeVariable(input: *Input, context: *std.ArrayList(u8)) *Expression {
 
 fn makePrint(input: *Input, context: *std.ArrayList(u8)) *Expression {
     var right = try expression(input, context, true);
-    if (right.* == .parseError) {
-        right = makeNewExpressionPointer(Expression{ .parseError = error.UnterminatedBinary }).?;
+    if (right == null or right.?.* == .parseError) {
+        right = makeNewExpressionPointer(Expression{ .parseError = error.UnexpectedEOF }).?;
     }
-    return makeNewExpressionPointer(Expression{ .print = right }).?;
+    return makeNewExpressionPointer(Expression{ .print = right.? }).?;
 }
 
 fn handleEOF(context: *std.ArrayList(u8), previous: ?*Expression) *Expression {
@@ -470,6 +470,7 @@ test "parserUnhappy" {
         TestCases{ .input = "(72 +)", .expected_error = error.UnterminatedBinary },
         TestCases{ .input = "(foo ", .expected_error = error.Unterminatedgroup },
         TestCases{ .input = "+", .expected_error = error.UnterminatedBinary },
+        TestCases{ .input = "// Print statements expect an expression\n // So, this program leads to a compilation error\n print;", .expected_error = error.UnexpectedEOF },
     };
 
     for (test_input) |test_case| {

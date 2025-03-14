@@ -150,21 +150,21 @@ fn evalMinus(left: Value, right: Value) !Value {
     if (left == .NUMBER and right == .NUMBER) {
         return Value{ .NUMBER = left.NUMBER - right.NUMBER };
     }
-    return Value{ .ERROR = error.operandNotNumber };
+    return Value{ .ERROR = error.OperandNotNumber };
 }
 
 fn evalStar(left: Value, right: Value) !Value {
     if (left == .NUMBER and right == .NUMBER) {
         return Value{ .NUMBER = left.NUMBER * right.NUMBER };
     }
-    return Value{ .ERROR = error.operandNotNumber };
+    return Value{ .ERROR = error.OperandNotNumber };
 }
 
 fn evalSlash(left: Value, right: Value) !Value {
     if (left == .NUMBER and right == .NUMBER) {
         return Value{ .NUMBER = left.NUMBER / right.NUMBER };
     }
-    return Value{ .ERROR = error.operandNotNumber };
+    return Value{ .ERROR = error.OperandNotNumber };
 }
 
 fn evalBangEqual(left: Value, right: Value) !Value {
@@ -220,7 +220,7 @@ fn evalLessEqual(left: Value, right: Value) !Value {
             return Value{ .FALSE = {} };
         }
     }
-    return Value{ .ERROR = error.operandNotNumber };
+    return Value{ .ERROR = error.OperandNotNumber };
 }
 
 fn evalGreaterEqual(left: Value, right: Value) !Value {
@@ -232,7 +232,7 @@ fn evalGreaterEqual(left: Value, right: Value) !Value {
         }
     }
 
-    return Value{ .ERROR = error.operandNotNumber };
+    return Value{ .ERROR = error.OperandNotNumber };
 }
 
 fn evalLess(left: Value, right: Value) !Value {
@@ -243,7 +243,7 @@ fn evalLess(left: Value, right: Value) !Value {
             return Value{ .FALSE = {} };
         }
     }
-    return Value{ .ERROR = error.operandNotNumber };
+    return Value{ .ERROR = error.OperandNotNumber };
 }
 
 fn evalGreater(left: Value, right: Value) !Value {
@@ -254,7 +254,7 @@ fn evalGreater(left: Value, right: Value) !Value {
             return Value{ .FALSE = {} };
         }
     }
-    return Value{ .ERROR = error.operandNotNumber };
+    return Value{ .ERROR = error.OperandNotNumber };
 }
 
 fn evalPlus(left: Value, right: Value) !Value {
@@ -273,7 +273,7 @@ fn evalUnary(unary: *const Expression) !Value {
             if (right == .NUMBER) {
                 return Value{ .NUMBER = -right.NUMBER };
             } else {
-                return Value{ .ERROR = error.operandNotNumber };
+                return Value{ .ERROR = error.OperandNotNumber };
             }
         },
         .BANG => return if (right == .TRUE) Value{ .FALSE = {} } else Value{ .TRUE = {} },
@@ -369,7 +369,7 @@ test "parserUnhappy" {
     const test_input = [_]TestCases{
         TestCases{
             .input = " // This program tests that the * operator is only supported when both operands are numbers\n print \"63\" + \"quz\";\n print false * (37 + 33);\n",
-            .expected_error = error.operandNotNumber,
+            .expected_error = error.OperandNotNumber,
         },
     };
 
@@ -379,12 +379,8 @@ test "parserUnhappy" {
         const tokens = try lexer.lexer(&inputTokens, true);
         var input = parser.Input{ .source = tokens };
         var expression_tree = try parser.parser(&input, true);
-        var buffer: [1024]u8 = undefined;
-        var stream = std.io.fixedBufferStream(&buffer);
-        const writer = stream.writer();
-        const value = try evalulate(&expression_tree, true);
-        std.debug.print("value:\n", .{});
-        try printValues(writer, &value);
+        const value = evalulate(&expression_tree, true);
+        std.debug.print("errors: {any}\n", .{value});
         try std.testing.expectError(test_case.expected_error, value);
         std.debug.print("\n\n\n", .{});
     }

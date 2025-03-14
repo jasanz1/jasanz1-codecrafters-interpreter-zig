@@ -111,9 +111,6 @@ fn evalVariable(value: *const Expression) !Value {
     if (valueValue == .ERROR) {
         return valueValue;
     }
-    std.debug.print("variable: {s} = ", .{value.variable.name});
-    printValue(std.io.getStdOut().writer(), &valueValue) catch unreachable;
-    std.debug.print("\n", .{});
     variable_map.put(value.variable.name, .{ .name = value.variable.name, .value = valueValue }) catch unreachable;
     return valueValue;
 }
@@ -338,6 +335,10 @@ test "evalHappy" {
         TestCases{
             .input = " // This program assigns the result of an arithmetic expression to a variable\n // Then it prints the value of the variable\n var world = (8 * (36 + 36)) / 4 + 36;\n print world;",
             .expected_output = "180180",
+        },
+        TestCases{
+            .input = "// This program tests that variables are initialized to the correct value\n var baz = 10;\n print baz;",
+            .expected_output = "1010",
         },
     };
     for (test_input) |test_case| {

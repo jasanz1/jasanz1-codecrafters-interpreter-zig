@@ -151,7 +151,7 @@ pub fn parser(input: *Input, ignore_errors: bool) !Statements {
         if (c.token_type == .EOF) {
             break;
         }
-        const expression_tree = try expression(input, &context, false);
+        const expression_tree = try expression(input, &context, .SEMICOLON, false);
         try statements.append(expression_tree);
         std.debug.print("statements: {any}\n", .{statements.items});
     }
@@ -162,12 +162,11 @@ pub fn parser(input: *Input, ignore_errors: bool) !Statements {
     return expressionArray;
 }
 
-fn expression(input: *Input, context: *std.ArrayList(u8), keepSemicolon: bool) !*Expression {
+fn expression(input: *Input, context: *std.ArrayList(u8), lastToken: TokenType, keepLastToken: bool) !*Expression {
     var expression_helper: ?*Expression = null;
     while (input.peek()) |c| {
-        if (c.token_type == .SEMICOLON) {
-            std.debug.print("SEMICOLON\n", .{});
-            if (!keepSemicolon) {
+        if (c.token_type == lastToken) {
+            if (!keepLastToken) {
                 _ = input.next();
             }
             break;
@@ -182,35 +181,12 @@ fn expression(input: *Input, context: *std.ArrayList(u8), keepSemicolon: bool) !
     return expression_helper.?;
 }
 
-fn groupExpression(input: *Input, context: *std.ArrayList(u8)) *Expression {
-    var expression_helper: ?*Expression = null;
-    context.append('(') catch unreachable;
-    while (input.peek()) |c| {
-        if (c.token_type == .RIGHT_PAREN) {
-            _ = input.next();
-            break;
-        }
-        expression_helper = expressionHelper(input, context, expression_helper);
-        if (@import("builtin").is_test) {
-            std.debug.print("Tester:", .{});
-            printSingleExpression(std.io.getStdOut().writer(), expression_helper.?) catch @panic("error printing expression");
-            std.debug.print("\n", .{});
-        }
-    }
-
-    if (context.pop() != '(' or expression_helper.?.* == .parseError) {
-        if (expression_helper.?.*.parseError == error.unexpectedEOF) {
-            return makeNewExpressionPointer(Expression{ .parseError = error.Unterminatedgroup }).?;
-        }
-    }
-    return makeNewExpressionPointer(Expression{ .grouping = expression_helper.? }).?;
-}
 fn expressionHelper(input: *Input, context: *std.ArrayList(u8), previous: ?*Expression) ?*Expression {
     if (input.peek()) |c| {
         _ = input.next();
         const new_expression = switch (c.token_type) {
             .TRUE, .FALSE, .NIL, .NUMBER, .STRING => makeLiteral(c),
-            .LEFT_PAREN => groupExpression(input, context),
+            .LEFT_PAREN => try expression(input, context, .RIGHT_PAREN, false),
             .RIGHT_PAREN => makeNewExpressionPointer(Expression{ .parseError = error.UnterminatedGroup }).?,
             .LEFT_BRACE => @panic("TODO"),
             .RIGHT_BRACE => @panic("TODO"),
@@ -263,18 +239,15 @@ fn makeVariable(input: *Input, context: *std.ArrayList(u8)) *Expression {
         return makeNewExpressionPointer(Expression{ .parseError = error.UnexpectedToken }).?;
     }
 
-    const value = try expression(input, context, true);
+    const value = try expression(input, context, .SEMICOLON, true);
     if (value.* == .parseError and value.*.parseError != error.unexpectedEOF) {
         return makeNewExpressionPointer(Expression{ .parseError = error.UnexpectedToken }).?;
     }
-    std.debug.print("variable: {s} = ", .{name.lexeme});
-    printSingleExpression(std.io.getStdOut().writer(), value) catch unreachable;
-    std.debug.print("\n", .{});
     return makeNewExpressionPointer(Expression{ .variable = .{ .name = name.lexeme, .value = value } }).?;
 }
 
 fn makePrint(input: *Input, context: *std.ArrayList(u8)) *Expression {
-    var right = try expression(input, context, true);
+    var right = try expression(input, context, .SEMICOLON, true);
     if (right.* == .parseError) {
         right = makeNewExpressionPointer(Expression{ .parseError = error.UnterminatedBinary }).?;
     }

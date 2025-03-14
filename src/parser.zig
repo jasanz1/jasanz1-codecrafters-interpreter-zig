@@ -259,7 +259,7 @@ fn makeVariable(input: *Input, context: *std.ArrayList(u8)) *Expression {
     }
     const equal = input.next() orelse return handleEOF(context, null);
     if (equal.token_type != .EQUAL) {
-        return makeNewExpressionPointer(Expression{ .name = name.lexeme, .value = .NIL }).?;
+        return makeNewExpressionPointer(Expression{ .variable = .{ .name = name.lexeme, .value = null } }).?;
     }
 
     const value = (try expression(input, context, true)).?;

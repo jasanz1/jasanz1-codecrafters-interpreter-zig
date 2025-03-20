@@ -53,6 +53,7 @@ pub fn printValue(writer: anytype, value: *const Value) !void {
         .ERROR => |err| try writer.print("error: {s}", .{@errorName(err)}),
     }
 }
+
 /// since we hold each expression in an array after evaluation, we can print all values in the array
 pub fn printValues(writer: anytype, values: *const []Value) !void {
     for (values.*) |current| {

@@ -278,7 +278,10 @@ fn makeVariable(input: *Input, context: *std.ArrayList(u8)) *Expression {
     }
     const equal = input.next() orelse return handleEOF(context, null);
     if (equal.token_type != .EQUAL) {
-        return makeNewExpressionPointer(Expression{ .variable = .{ .name = name.lexeme, .value = makeNewExpressionPointer(Expression{ .literal = .{ .NIL = {} } }).? } }).?;
+        if (equal.token_type == .SEMICOLON) {
+            return makeNewExpressionPointer(Expression{ .variable = .{ .name = name.lexeme, .value = makeNewExpressionPointer(Expression{ .literal = .{ .NIL = {} } }).? } }).?;
+        }
+        return makeNewExpressionPointer(Expression{ .parseError = error.UnexpectedToken }).?;
     }
 
     const value = (try expression(input, context, true)).?;

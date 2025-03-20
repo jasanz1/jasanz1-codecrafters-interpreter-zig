@@ -5,6 +5,7 @@ const Operator = @import("parser.zig").Operator;
 const lexer = @import("lexer.zig");
 const parser = @import("parser.zig");
 const printSingleExpression = @import("parser.zig").printSingleExpression;
+/// big list of errors to make non infered errors more readable
 const evalErrors = error{
     OutOfMemory,
     NoSpaceLeft,
@@ -23,6 +24,8 @@ const evalErrors = error{
     ConnectionResetByPeer,
     Unexpected,
 };
+/// all possible values a expression can evaluate to
+/// ERROR is used to wrap errors so the evaluator doesnt crash immedaitely and we can handle them later
 const Value = union(enum) {
     STRING: []const u8,
     NUMBER: f64,
@@ -31,13 +34,15 @@ const Value = union(enum) {
     FALSE,
     ERROR: anyerror,
 };
-
+/// holds information about a variable
 const Variable = struct {
     name: []const u8,
     value: Value,
 };
-
+/// holds all variables
 var variable_map = std.StringHashMap(Variable).init(std.heap.page_allocator);
+
+///takes a value and prints it to the passed writer
 pub fn printValue(writer: anytype, value: *const Value) !void {
     switch (value.*) {
         .STRING => |string| try writer.print("{s}", .{string}),
@@ -48,26 +53,27 @@ pub fn printValue(writer: anytype, value: *const Value) !void {
         .ERROR => |err| try writer.print("error: {s}", .{@errorName(err)}),
     }
 }
-
+/// since we hold each expression in an array after evaluation, we can print all values in the array
 pub fn printValues(writer: anytype, values: *const []Value) !void {
     for (values.*) |current| {
         try printValue(writer, &current);
     }
 }
 
+/// checks a single value for errors
 pub fn valueErrorCheck(value: Value) !void {
     switch (value) {
         .ERROR => |err| return err,
         else => {},
     }
 }
-
+//checks all values in an array for errors
 pub fn valuesErrorCheck(values: []Value) !void {
     for (values) |current| {
         try valueErrorCheck(current);
     }
 }
-
+/// entry point for the evaluator goes through all Statements and evaluates them appending the results to a list checks them for errors, then returns an the array
 pub fn evalulate(ast: *Statements, ignore_errors: bool) ![]Value {
     var value = std.ArrayList(Value).init(std.heap.page_allocator);
     defer value.deinit();
@@ -84,6 +90,7 @@ pub fn evalulate(ast: *Statements, ignore_errors: bool) ![]Value {
     return valueArray;
 }
 
+/// evaluates an expression for literals it just wraps them in a Value otherwise calls recursive functions to handle the special cases
 fn eval(ast: *const Expression) evalErrors!Value {
     return switch (ast.*) {
         .binary => try evalBinary(ast),
@@ -105,7 +112,8 @@ fn eval(ast: *const Expression) evalErrors!Value {
         .parseError => @panic("todo"),
     };
 }
-
+/// evaluates a variable, if the variable is not found it returns an error
+/// once the value is found it adds it to the variable_map so it can be accessed later
 fn evalVariable(value: *const Expression) !Value {
     const valueValue = try eval(value.variable.value);
     if (valueValue == .ERROR) {
@@ -115,6 +123,7 @@ fn evalVariable(value: *const Expression) !Value {
     return valueValue;
 }
 
+/// evaluates a print expression, prints the value and returns it
 fn evalPrint(printExpression: *const Expression) !Value {
     const print = printExpression.print;
     const value = try eval(print);
@@ -126,6 +135,7 @@ fn evalPrint(printExpression: *const Expression) !Value {
     return value;
 }
 
+/// evaluates a binary expression, calls the appropriate function for an operatorion and returns the result
 fn evalBinary(binary: *const Expression) !Value {
     const left = try eval(binary.binary.left);
     const right = try eval(binary.binary.right);
@@ -146,6 +156,7 @@ fn evalBinary(binary: *const Expression) !Value {
     return value;
 }
 
+/// evaluates a minus expression, checks if both values are numbers and subtracts them
 fn evalMinus(left: Value, right: Value) !Value {
     if (left == .NUMBER and right == .NUMBER) {
         return Value{ .NUMBER = left.NUMBER - right.NUMBER };
@@ -153,6 +164,7 @@ fn evalMinus(left: Value, right: Value) !Value {
     return Value{ .ERROR = error.OperandNotNumber };
 }
 
+/// evaluates a star expression, checks if both values are numbers and multiplies them
 fn evalStar(left: Value, right: Value) !Value {
     if (left == .NUMBER and right == .NUMBER) {
         return Value{ .NUMBER = left.NUMBER * right.NUMBER };
@@ -160,6 +172,7 @@ fn evalStar(left: Value, right: Value) !Value {
     return Value{ .ERROR = error.OperandNotNumber };
 }
 
+/// evaluates a slash expression, checks if both values are numbers and divides them
 fn evalSlash(left: Value, right: Value) !Value {
     if (left == .NUMBER and right == .NUMBER) {
         return Value{ .NUMBER = left.NUMBER / right.NUMBER };
@@ -167,6 +180,7 @@ fn evalSlash(left: Value, right: Value) !Value {
     return Value{ .ERROR = error.OperandNotNumber };
 }
 
+/// evaluates a bang equal expression, preforms a logical not equal check on booleans, numbers, and strings
 fn evalBangEqual(left: Value, right: Value) !Value {
     if (left == .TRUE and right == .TRUE) {
         return Value{ .FALSE = {} };
@@ -190,6 +204,7 @@ fn evalBangEqual(left: Value, right: Value) !Value {
     @panic("todo");
 }
 
+/// evaluates an equal equal expression, preforms a logical equal check on booleans, numbers, and strings
 fn evalEqualEqual(left: Value, right: Value) !Value {
     if (left == .TRUE and right == .TRUE) {
         return Value{ .TRUE = {} };
@@ -212,6 +227,8 @@ fn evalEqualEqual(left: Value, right: Value) !Value {
     }
     return Value{ .FALSE = {} };
 }
+
+/// evaluates an less equal expression, preforms a logical less equal check on numbers
 fn evalLessEqual(left: Value, right: Value) !Value {
     if (left == .NUMBER and right == .NUMBER) {
         if (left.NUMBER <= right.NUMBER) {
@@ -223,6 +240,7 @@ fn evalLessEqual(left: Value, right: Value) !Value {
     return Value{ .ERROR = error.OperandNotNumber };
 }
 
+/// evaluates a greater equal expression, preforms a logical greater equal check on numbers
 fn evalGreaterEqual(left: Value, right: Value) !Value {
     if (left == .NUMBER and right == .NUMBER) {
         if (left.NUMBER >= right.NUMBER) {
@@ -235,6 +253,7 @@ fn evalGreaterEqual(left: Value, right: Value) !Value {
     return Value{ .ERROR = error.OperandNotNumber };
 }
 
+/// evaluates a less expression, preforms a logical less check on numbers
 fn evalLess(left: Value, right: Value) !Value {
     if (left == .NUMBER and right == .NUMBER) {
         if (left.NUMBER < right.NUMBER) {
@@ -246,6 +265,7 @@ fn evalLess(left: Value, right: Value) !Value {
     return Value{ .ERROR = error.OperandNotNumber };
 }
 
+/// evaluates a greator expression, preforms a logical greator check on numbers
 fn evalGreater(left: Value, right: Value) !Value {
     if (left == .NUMBER and right == .NUMBER) {
         if (left.NUMBER > right.NUMBER) {
@@ -257,6 +277,7 @@ fn evalGreater(left: Value, right: Value) !Value {
     return Value{ .ERROR = error.OperandNotNumber };
 }
 
+/// evaluates a plus expression, checks if both values are strings or numbers and adds them
 fn evalPlus(left: Value, right: Value) !Value {
     if (left == .STRING and right == .STRING) {
         return Value{ .STRING = try std.fmt.allocPrint(std.heap.page_allocator, "{s}{s}", .{ left.STRING, right.STRING }) };
@@ -266,6 +287,9 @@ fn evalPlus(left: Value, right: Value) !Value {
     return Value{ .ERROR = error.operandsTypeMustMatch };
 }
 
+/// evaluates a unary expression,
+/// if expression is minus checks if the right value is a number then makes number negative
+/// if expression is bang negates bool values
 fn evalUnary(unary: *const Expression) !Value {
     const right = try eval(unary.unary.right);
     switch (unary.unary.operator) {
@@ -280,6 +304,7 @@ fn evalUnary(unary: *const Expression) !Value {
         else => @panic("we should never get here"),
     }
 }
+
 test "evalHappy" {
     const TestCases = struct {
         input: []const u8,

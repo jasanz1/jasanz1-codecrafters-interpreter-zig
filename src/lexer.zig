@@ -1,23 +1,24 @@
 const std = @import("std");
-/// A generic input struct that can be used to read from a slice of any type.
+/// takes a u8 array and turns into a lexer input
 /// This is used to tokenize the input.
 pub const Input = @import("generics.zig").makeInput(u8);
+
+/// A token struct that contains the lexeme, type, and literal value of a token.
 pub const Token = struct {
-    /// A token struct that contains the lexeme, type, and literal value of a token.
     line_number: usize,
     token_type: TokenType,
     lexeme: []const u8,
     literal: ?Literal,
 };
 
+/// A union of all possible literal values.
 pub const Literal = union(enum) {
-    /// A union of all possible literal values.
     number: f64,
     string: []const u8,
 };
 
+/// A union of all possible token types.
 pub const TokenType = enum {
-    /// A union of all possible token types.
     LEFT_PAREN,
     RIGHT_PAREN,
     LEFT_BRACE,
@@ -60,6 +61,8 @@ pub const TokenType = enum {
     UNTERMINATED_STRING,
     EOF,
 };
+
+/// prints a given token
 pub fn printToken(token: Token) !void {
     const token_type = @tagName(token.token_type);
     if (token.literal) |literal| {
@@ -94,6 +97,7 @@ pub fn printToken(token: Token) !void {
     }
 }
 
+///prints all tokens in a given token array
 pub fn printTokens(tokens: []Token) !void {
     for (tokens) |token| {
         try printToken(token);
@@ -101,6 +105,7 @@ pub fn printTokens(tokens: []Token) !void {
     return;
 }
 
+/// checks for lexer errors
 pub fn errorCheck(tokens: []Token) !void {
     for (tokens) |token| {
         switch (token.token_type) {
@@ -115,6 +120,7 @@ pub fn errorCheck(tokens: []Token) !void {
     }
 }
 
+/// main entry point for the lexer. takes a lexer input turns it into a array of tokens
 pub fn lexer(source: *Input, ignore_errors: bool) ![]Token {
     const tokens = try Tokenizer(source);
     if (!ignore_errors) {
@@ -123,6 +129,7 @@ pub fn lexer(source: *Input, ignore_errors: bool) ![]Token {
     return tokens;
 }
 
+/// main function for the lexer, walks the input and turns ever char or string of char into a token
 fn Tokenizer(source: *Input) ![]Token {
     var tokens = std.ArrayList(Token).init(std.heap.page_allocator);
     var keyword_map = std.StringHashMap(TokenType).init(std.heap.page_allocator);
@@ -203,6 +210,7 @@ fn Tokenizer(source: *Input) ![]Token {
     return finalTokens;
 }
 
+/// reads an identifer from the input, if it is not a valid identifer it returns an error
 fn readIdentifer(source: *Input, current: u8) !Token {
     var identifier = std.ArrayList(u8).init(std.heap.page_allocator);
     if (current != '_' and !std.ascii.isAlphanumeric(current)) {
@@ -229,6 +237,7 @@ fn readIdentifer(source: *Input, current: u8) !Token {
     return token;
 }
 
+/// reads a string from the input, if it is not a valid string it returns an error
 fn readString(source: *Input) !Token {
     var string = std.ArrayList(u8).init(std.heap.page_allocator);
     while (source.peek()) |c| {
@@ -252,6 +261,7 @@ fn readString(source: *Input) !Token {
     return token;
 }
 
+/// reads a number from the input, if it is not a valid number it returns an error
 fn readNumber(source: *Input, current: u8) !Token {
     var number = std.ArrayList(u8).init(std.heap.page_allocator);
     try number.append(current);
@@ -279,13 +289,15 @@ fn readNumber(source: *Input, current: u8) !Token {
     const token = Token{ .line_number = source.line_number, .token_type = TokenType.NUMBER, .lexeme = lexeme, .literal = Literal{ .number = std.fmt.parseFloat(f64, literal) catch unreachable } };
     return token;
 }
-fn readmultiCharacterEqualToken(source: *Input, single_token_type: TokenType, multi_tokenType: TokenType, current: u8) !Token {
+
+/// takes current char and peeks next char, if the next char is an = then takes it and turns it into multi_token_type otherwise turns current char into single_token_type
+fn readmultiCharacterEqualToken(source: *Input, single_token_type: TokenType, multi_token_type: TokenType, current: u8) !Token {
     const current_str = try std.fmt.allocPrint(std.heap.page_allocator, "{c}", .{current});
     if (source.peek()) |cPeek| {
         if (cPeek == '=') {
             _ = source.next() orelse return error.uhoh;
             const lexeme = try std.fmt.allocPrint(std.heap.page_allocator, "{c}{c}", .{ current, cPeek });
-            return Token{ .line_number = source.line_number, .token_type = multi_tokenType, .lexeme = lexeme, .literal = null };
+            return Token{ .line_number = source.line_number, .token_type = multi_token_type, .lexeme = lexeme, .literal = null };
         } else {
             return Token{ .line_number = source.line_number, .token_type = single_token_type, .lexeme = current_str, .literal = null };
         }
@@ -293,6 +305,7 @@ fn readmultiCharacterEqualToken(source: *Input, single_token_type: TokenType, mu
         return Token{ .line_number = source.line_number, .token_type = single_token_type, .lexeme = current_str, .literal = null };
     }
 }
+
 test "parserHappy" {
     const TestCases = struct {
         input: []const u8,

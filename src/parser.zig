@@ -1,3 +1,6 @@
+//! this is the parser for the interpreter
+//! It takes an array of tokens and turns them into an array of expressions
+//! Expressions are a tree structure that represents the different types of expressions
 const std = @import("std");
 const lexer = @import("lexer.zig");
 const Token = @import("lexer.zig").Token;
@@ -37,7 +40,14 @@ pub const Operator = enum {
 /// Statements are a wrapper around an array of expressions
 pub const Statements = []*Expression;
 
-/// Expressions are the main data structure of the parser, they are a union of all possible expressions
+/// Expressions are the main data structure of the parser, they are a union of all possible expressions type
+/// binary expressions are made up of a left subexpression, an operator, and a right subexpression
+/// unary expressions are made up of an operator and a right subexpression
+/// literal expressions are made up of a literal value
+/// variable expressions are made up of a variable name and a value subexpression
+/// grouping expressions are made up of a single subexpression
+/// print expressions are made up of a single subexpression
+/// identifier expressions are made up of a single identifier
 pub const Expression = union(enum) {
     binary: struct { left: *Expression, operator: Operator, right: *Expression },
     unary: struct { operator: Operator, right: *Expression },
@@ -122,7 +132,7 @@ pub fn errorCheckStatements(statements: Statements) !void {
     }
 }
 
-/// checks for errors in an expression
+/// recursivley checks for errors in an expression
 pub fn errorCheckExpression(expression_tree: *const Expression) !void {
     switch (expression_tree.*) {
         .binary => |*binary| {
@@ -152,6 +162,7 @@ pub fn errorCheckExpression(expression_tree: *const Expression) !void {
 
 /// main entry point for the parser, takes an lexer input and turns them into a list of expression trees AKA Statements
 /// has a context array for tracking groupings and a ignore_errors flag for turning off error checking
+/// goes the token Input stream until it hits EOF or runs out of tokens, then returns a list of expression trees
 pub fn parser(input: *Input, ignore_errors: bool) !Statements {
     var context = std.ArrayList(u8).init(std.heap.page_allocator);
     var statements = std.ArrayList(*Expression).init(std.heap.page_allocator);
@@ -172,6 +183,8 @@ pub fn parser(input: *Input, ignore_errors: bool) !Statements {
 
 /// helper function for the parser, takes an input and a context and returns an expression tree or null if there is no more input
 /// has a flag for whether we want to drop the semicolon or not for nested calls of expression later
+/// goes the token Input stream until it hits SEMICOLON or runs out of tokens, then returns an expression tree
+/// has so debug output that that gets compiled out when not running tests
 fn expression(input: *Input, context: *std.ArrayList(u8), keepSemicolon: bool) !?*Expression {
     var expression_helper: ?*Expression = null;
     while (input.peek()) |c| {
@@ -192,9 +205,12 @@ fn expression(input: *Input, context: *std.ArrayList(u8), keepSemicolon: bool) !
 }
 
 /// special expression handler for grouping expressions (i.e. parenthesis) needs to track the context
+/// goes the token Input stream until it hits RIGHT_PAREN or runs out of tokens, then returns an expression tree
+/// has so debug output that that gets compiled out when not running tests
+/// checks to make sure the the context is in the right state and that there wasnt a parse error
 fn groupExpression(input: *Input, context: *std.ArrayList(u8)) *Expression {
     var expression_helper: ?*Expression = null;
-    context.append('(') catch unreachable;
+    context.append('(') catch unreachable; // TODO this needs to be redone, doesnt support nested groups
     while (input.peek()) |c| {
         if (c.token_type == .RIGHT_PAREN) {
             _ = input.next();
@@ -217,13 +233,15 @@ fn groupExpression(input: *Input, context: *std.ArrayList(u8)) *Expression {
 }
 
 /// helper function for the parser, takes an input and a context and returns an expression tree or null if there is no more input
-/// has an optional previous expression to handle precedence, uses a switch statement to handle all the different types of expressions
+/// has an optional previous expression to be used for making binary expressions, uses a switch statement to handle all the different types of expressions
+///
 fn expressionHelper(input: *Input, context: *std.ArrayList(u8), previous: ?*Expression) ?*Expression {
     if (input.peek()) |c| {
         _ = input.next();
         const new_expression = switch (c.token_type) {
             .TRUE, .FALSE, .NIL, .NUMBER, .STRING => makeLiteral(c),
             .LEFT_PAREN => groupExpression(input, context),
+            // since we take the paren before returning back to normal execusions there should be any time we encounter a RIGHT_PAREN here
             .RIGHT_PAREN => makeNewExpressionPointer(Expression{ .parseError = error.UnterminatedGroup }).?,
             .LEFT_BRACE => @panic("TODO"),
             .RIGHT_BRACE => @panic("TODO"),
@@ -259,7 +277,6 @@ fn expressionHelper(input: *Input, context: *std.ArrayList(u8), previous: ?*Expr
             .UNTERMINATED_STRING => @panic("TODO"),
             .EOF => handleEOF(context, previous),
             .MINUS => handleMinus(input, context, previous),
-            // i dont like this
         };
         return new_expression;
     }

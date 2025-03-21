@@ -1,10 +1,10 @@
 /// A generic input struct that can be used to read from a slice of any type.
+/// This function takes a comptime value_type and returns a function that takes a value_type and returns a struct.
+/// The struct has a source field of type value_type, an index field of type usize, and a line_number field of type usize.
+/// The next function returns the next value_type in the source slice, or null if there are no more values.
+/// The peek function returns the next value_type in the source slice without advancing the index, or null if there are no more values.
 pub fn makeInput(comptime value_type: type) type {
     return struct {
-        /// This function takes a comptime value_type and returns a function that takes a value_type and returns a struct.
-        /// The struct has a source field of type value_type, an index field of type usize, and a line_number field of type usize.
-        /// The next function returns the next value_type in the source slice, or null if there are no more values.
-        /// The peek function returns the next value_type in the source slice without advancing the index, or null if there are no more values.
         source: []const value_type,
         index: usize = 0,
         line_number: usize = 1,

@@ -1,3 +1,6 @@
+//! This is the evaluator for the interpreter
+//! It takes an array of expressions and evaluates them based on lox spec
+//! https://github.com/munificent/craftinginterpreters/blob/01e6f5b8f3e5dfa65674c2f9cf4700d73ab41cf8/book/the-lox-language.md
 const std = @import("std");
 const Expression = @import("parser.zig").Expression;
 const Statements = @import("parser.zig").Statements;
@@ -34,11 +37,13 @@ const Value = union(enum) {
     FALSE,
     ERROR: anyerror,
 };
+
 /// holds information about a variable
 const Variable = struct {
     name: []const u8,
     value: Value,
 };
+
 /// holds all variables
 var variable_map = std.StringHashMap(Variable).init(std.heap.page_allocator);
 
@@ -68,13 +73,15 @@ pub fn valueErrorCheck(value: Value) !void {
         else => {},
     }
 }
-//checks all values in an array for errors
+
+///checks all values in an array for errors
 pub fn valuesErrorCheck(values: []Value) !void {
     for (values) |current| {
         try valueErrorCheck(current);
     }
 }
-/// entry point for the evaluator goes through all Statements and evaluates them appending the results to a list checks them for errors, then returns an the array
+
+/// entry point for the evaluator goes through all Statements and evaluates then appending the results to a list checks them for errors, then returns an the array
 pub fn evalulate(ast: *Statements, ignore_errors: bool) ![]Value {
     var value = std.ArrayList(Value).init(std.heap.page_allocator);
     defer value.deinit();

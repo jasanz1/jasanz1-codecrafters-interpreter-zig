@@ -1,4 +1,7 @@
+//! This is the lexer for the interpreter
+//! It takes a string and turns it into an array of tokens
 const std = @import("std");
+
 /// takes a u8 array and turns into a lexer input
 /// This is used to tokenize the input.
 pub const Input = @import("generics.zig").makeInput(u8);
@@ -130,6 +133,8 @@ pub fn lexer(source: *Input, ignore_errors: bool) ![]Token {
 }
 
 /// main function for the lexer, walks the input and turns ever char or string of char into a token
+/// makes a map of keywords and assigns them to their respective token type so they can be differentiated from identifiers
+/// uses \n to determine line numbers
 fn Tokenizer(source: *Input) ![]Token {
     var tokens = std.ArrayList(Token).init(std.heap.page_allocator);
     var keyword_map = std.StringHashMap(TokenType).init(std.heap.page_allocator);
@@ -211,6 +216,8 @@ fn Tokenizer(source: *Input) ![]Token {
 }
 
 /// reads an identifer from the input, if it is not a valid identifer it returns an error
+/// makes sure the first character is a valid character for an identifier
+/// then until it hits a non alphanumeric character or a newline it appends the character to the identifier
 fn readIdentifer(source: *Input, current: u8) !Token {
     var identifier = std.ArrayList(u8).init(std.heap.page_allocator);
     if (current != '_' and !std.ascii.isAlphanumeric(current)) {
@@ -238,6 +245,9 @@ fn readIdentifer(source: *Input, current: u8) !Token {
 }
 
 /// reads a string from the input, if it is not a valid string it returns an error
+/// takes chars until it hits a " or \r
+/// if it hits a \r it increments the line number and returns an unterminated string error
+/// if it hits a " it returns a token with the string as the lexeme
 fn readString(source: *Input) !Token {
     var string = std.ArrayList(u8).init(std.heap.page_allocator);
     while (source.peek()) |c| {
@@ -262,6 +272,9 @@ fn readString(source: *Input) !Token {
 }
 
 /// reads a number from the input, if it is not a valid number it returns an error
+/// takes chars until it hits a non number character or a newline
+/// if it hits a non number character it returns a token with the number as the lexeme
+/// makes sure number arrays are not empty then parses the number
 fn readNumber(source: *Input, current: u8) !Token {
     var number = std.ArrayList(u8).init(std.heap.page_allocator);
     try number.append(current);

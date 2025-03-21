@@ -27,7 +27,7 @@ pub fn main() !u8 {
     const file_contents = try std.fs.cwd().readFileAlloc(std.heap.page_allocator, filename, std.math.maxInt(usize));
     defer std.heap.page_allocator.free(file_contents);
 
-    // tokenizes the file
+    // takes the file contents and turns it into tokens
     var tokenizerInput = lexer.Input{ .source = file_contents };
     const tokens = lexer.lexer(&tokenizerInput, std.mem.eql(u8, command, "tokenize")) catch return 65;
     defer std.heap.page_allocator.free(tokens);
@@ -38,7 +38,7 @@ pub fn main() !u8 {
         return 0;
     }
 
-    // parses the tokens
+    // takes the tokens and turns them into an ast
     var pasterInput = parser.Input{ .source = tokens };
     var ast = parser.parser(&pasterInput, std.mem.eql(u8, command, "parse")) catch return 65;
     // prints the ast if the command is parse then checks for errors and returns
@@ -48,7 +48,7 @@ pub fn main() !u8 {
         return 0;
     }
 
-    // evaluates the ast
+    // takes the ast and evalulates it
     const value = eval.evalulate(&ast, std.mem.eql(u8, command, "evaluate")) catch return 70;
     // prints the value if the command is evaluate then checks for errors and returns
     if (std.mem.eql(u8, command, "evaluate")) {

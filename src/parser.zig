@@ -252,7 +252,7 @@ fn expressionHelper(input: *Input, context: *std.ArrayList(u8), previous: ?*Expr
             .SLASH => makeBinary(input, context, previous, .SLASH, multipleOrDividePercedence),
             .BANG => makeUnary(input, context, .BANG),
             .BANG_EQUAL => makeBinary(input, context, previous, .BANG_EQUAL, comparePercedence),
-            .EQUAL => @panic("TODO"),
+            .EQUAL => handleEqual(input, context, previous),
             .EQUAL_EQUAL => makeBinary(input, context, previous, .EQUAL_EQUAL, comparePercedence),
             .LESS => makeBinary(input, context, previous, .LESS, comparePercedence),
             .GREATER => makeBinary(input, context, previous, .GREATER, comparePercedence),
@@ -283,6 +283,18 @@ fn expressionHelper(input: *Input, context: *std.ArrayList(u8), previous: ?*Expr
     }
 
     return null;
+}
+
+fn handleEqual(input: *Input, context: *std.ArrayList(u8), previous: ?*Expression) *Expression {
+    if (previous.?.* != .identifier) {
+        return makeNewExpressionPointer(Expression{ .parseError = error.UnexpectedToken }).?;
+    }
+    const identifier = previous.?;
+    const value = try expression(input, context, true);
+    if (value == null) {
+        return makeNewExpressionPointer(Expression{ .parseError = error.UnexpectedEOF }).?;
+    }
+    return makeNewExpressionPointer(Expression{ .variable = .{ .name = identifier.*.identifier, .value = value.? } }).?;
 }
 
 /// expression handler for variables, needs to track the context for error handling and sub expression call

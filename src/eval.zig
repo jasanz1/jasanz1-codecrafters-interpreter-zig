@@ -384,6 +384,10 @@ test "evalHappy" {
             .input = " var hello;\n print hello;",
             .expected_output = "nilnil",
         },
+        TestCases{
+            .input = "// This program tests that the assignment operator returns the value that was assigned\n And prints the value of the variable after each assignment\n var baz;\n baz = 1;\n print baz;\n print baz = 2;\n print baz;\n",
+            .expected_output = "nil1122",
+        },
     };
     for (test_input) |test_case| {
         std.debug.print("test case:\n{s}\nEOF\n\n", .{test_case.input});

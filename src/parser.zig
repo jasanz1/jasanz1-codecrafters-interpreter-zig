@@ -278,6 +278,7 @@ fn expressionHelper(input: *Input, context: *std.ArrayList(u8), previous: ?*Expr
             .EOF => handleEOF(context, previous),
             .MINUS => handleMinus(input, context, previous),
         };
+
         return new_expression;
     }
 
@@ -293,13 +294,14 @@ fn makeVariable(input: *Input, context: *std.ArrayList(u8)) *Expression {
     if (name.token_type != .IDENTIFIER) {
         return makeNewExpressionPointer(Expression{ .parseError = error.UnexpectedToken }).?;
     }
-    const equal = input.next() orelse return handleEOF(context, null);
+    const equal = input.peek() orelse return handleEOF(context, null);
     if (equal.token_type != .EQUAL) {
         if (equal.token_type == .SEMICOLON) {
             return makeNewExpressionPointer(Expression{ .variable = .{ .name = name.lexeme, .value = makeNewExpressionPointer(Expression{ .literal = .{ .NIL = {} } }).? } }).?;
         }
         return makeNewExpressionPointer(Expression{ .parseError = error.UnexpectedToken }).?;
     }
+    _ = input.next() orelse return handleEOF(context, null);
 
     const value = (try expression(input, context, true)).?;
     if (value.* == .parseError and value.*.parseError != error.unexpectedEOF) {

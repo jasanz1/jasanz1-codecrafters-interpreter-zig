@@ -3,6 +3,7 @@
 //! https://github.com/munificent/craftinginterpreters/blob/01e6f5b8f3e5dfa65674c2f9cf4700d73ab41cf8/book/the-lox-language.md
 const std = @import("std");
 const Expression = @import("parser.zig").Expression;
+const printStatements = @import("parser.zig").printStatements;
 const Statements = @import("parser.zig").Statements;
 const Operator = @import("parser.zig").Operator;
 const lexer = @import("lexer.zig");
@@ -124,6 +125,7 @@ fn eval(ast: *const Expression) evalErrors!Value {
 /// once the value is found it adds it to the variable_map so it can be accessed later
 fn evalVariable(value: *const Expression) !Value {
     const valueValue = try eval(value.variable.value);
+    std.debug.print("valueValue: {any}\n", .{valueValue});
     if (valueValue == .ERROR) {
         return valueValue;
     }
@@ -135,6 +137,7 @@ fn evalVariable(value: *const Expression) !Value {
 fn evalPrint(printExpression: *const Expression) !Value {
     const print = printExpression.print;
     const value = try eval(print);
+    std.debug.print("print value: {any}\n", .{value});
     if (value == .ERROR) {
         return value;
     }
@@ -376,6 +379,10 @@ test "evalHappy" {
         TestCases{
             .input = " // This program prints the result of an arithmetic expression \n print (80 * 2 + 77 * 2) / (2);",
             .expected_output = "157",
+        },
+        TestCases{
+            .input = " var hello;\n print hello;",
+            .expected_output = "nilnil",
         },
     };
     for (test_input) |test_case| {
